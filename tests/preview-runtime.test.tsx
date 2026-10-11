@@ -6,8 +6,9 @@ import { ShouldStartProvider, useShouldStart } from '../src/preview/timerContext
 import Box from '../src/preview/components/statbox';
 import useAutoTrackWebSocket from '../src/preview/autotrack';
 import { FakeSniSocket, memoryFrame } from './helpers/sni';
-import { WIDGETS } from '../src/preview/config';
+import { DEFAULT_LAUNCH_SETTINGS, WIDGETS } from '../src/preview/config';
 import { METRICS, createSpeedMap, hexToRgb, resolveAppearance } from '../src/preview/appearance';
+import PreviewApp from '../src/preview/App';
 
 function TimerProbe() {
   const { setShouldStart, setTimerOn, timerOn } = useShouldStart();
@@ -16,6 +17,7 @@ function TimerProbe() {
     <>
       <output data-testid="duration">{timer.duration}</output>
       <output data-testid="running">{String(timerOn)}</output>
+      <output data-testid="has-started">{String(timer.hasStarted)}</output>
       <button onClick={() => setShouldStart(true)}>auto start</button>
       <button onClick={() => setShouldStart(false)}>auto stop</button>
       <button onClick={() => setTimerOn(false)}>pause</button>
@@ -35,6 +37,52 @@ afterEach(() => {
 });
 
 describe('preview timer accounting', () => {
+  it('starts immediately and publishes elapsed time every 125 ms', () => {
+    const view = render(<ShouldStartProvider><TimerProbe /></ShouldStartProvider>);
+    expect(view.getByTestId('has-started').textContent).toBe('false');
+    fireEvent.click(view.getByText('auto start'));
+    expect(view.getByTestId('running').textContent).toBe('true');
+    expect(view.getByTestId('has-started').textContent).toBe('true');
+    advance(124);
+    expect(view.getByTestId('duration').textContent).toBe('0');
+    advance(1);
+    expect(view.getByTestId('duration').textContent).toBe('125');
+    advance(124);
+    expect(view.getByTestId('duration').textContent).toBe('125');
+    advance(1);
+    expect(view.getByTestId('duration').textContent).toBe('250');
+  });
+
+  it.each(['pause', 'auto stop'])('retains epoch-zero startup history through an immediate %s and resume', (action) => {
+    vi.setSystemTime(0);
+    const view = render(<ShouldStartProvider><TimerProbe /></ShouldStartProvider>);
+    fireEvent.click(view.getByText('auto start'));
+    fireEvent.click(view.getByText(action));
+    expect(view.getByTestId('running').textContent).toBe('false');
+    expect(view.getByTestId('has-started').textContent).toBe('true');
+    expect(view.getByTestId('duration').textContent).toBe('0');
+    advance(5000);
+    expect(view.getByTestId('duration').textContent).toBe('0');
+    expect(view.getByTestId('has-started').textContent).toBe('true');
+    fireEvent.click(view.getByText(action === 'pause' ? 'resume' : 'auto start'));
+    advance(125);
+    expect(view.getByTestId('duration').textContent).toBe('125');
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('clears the refresh interval under StrictMode and resets history on a fresh mount', () => {
+    const view = render(<React.StrictMode><ShouldStartProvider><TimerProbe /></ShouldStartProvider></React.StrictMode>);
+    fireEvent.click(view.getByText('auto start'));
+    advance(125);
+    expect(view.getByTestId('duration').textContent).toBe('125');
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    const fresh = render(<ShouldStartProvider><TimerProbe /></ShouldStartProvider>);
+    expect(fresh.getByTestId('has-started').textContent).toBe('false');
+    expect(fresh.getByTestId('duration').textContent).toBe('0');
+  });
+
   it('banks partial seconds on automatic stops and resumes without counting paused wall time', () => {
     const view = render(<ShouldStartProvider><TimerProbe /></ShouldStartProvider>);
     fireEvent.click(view.getByText('auto start'));
@@ -140,6 +188,14 @@ function renderSni() {
   return render(<ShouldStartProvider><SniProbe /></ShouldStartProvider>);
 }
 
+function AutoStartProbe() {
+  const { shouldStart, timerOn, setShouldStart } = useShouldStart();
+  return <>
+    <output data-testid="auto-start">{`${shouldStart}:${timerOn}`}</output>
+    <button onClick={() => setShouldStart(false)}>automatic stop</button>
+  </>;
+}
+
 function attach(socket: FakeSniSocket) {
   act(() => socket.open());
   reply(socket, JSON.stringify({ Results: ['Fixture', 'Other'] }));
@@ -157,6 +213,52 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     FakeSniSocket.instances = [];
     FakeSniSocket.failConstruction = false;
     vi.stubGlobal('WebSocket', FakeSniSocket);
+  });
+
+  it.each([0, 625])('shows the compensated timer immediately after a spawn-mode reply delayed by %i ms', (responseDelay) => {
+    const view = render(<ShouldStartProvider>
+      <PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />
+      <AutoStartProbe />
+    </ShouldStartProvider>);
+    const socket = FakeSniSocket.instances[0];
+    attach(socket);
+    const awaitingModeAt = Date.now();
+    advance(responseDelay);
+    expect(view.getByTestId('auto-start').textContent).toBe('false:false');
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:00');
+    expect(view.queryByText('DE-FLUFF')).toBeNull();
+    mode(socket, 0x1B);
+    expect(view.getByTestId('auto-start').textContent).toBe('true:true');
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:01');
+    expect(view.getByText('DE-FLUFF')).toBeTruthy();
+    expect(Date.now() - awaitingModeAt).toBe(responseDelay);
+    advance(875);
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:01');
+    advance(125);
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:02');
+    advance(1000);
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:03');
+  });
+
+  it.each(['pause', 'automatic stop'])('retains the epoch-zero display and controls after an immediate %s', (action) => {
+    vi.setSystemTime(-125);
+    const view = render(<ShouldStartProvider>
+      <PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />
+      <AutoStartProbe />
+    </ShouldStartProvider>);
+    const socket = FakeSniSocket.instances[0];
+    attach(socket);
+    expect(Date.now()).toBe(0);
+    mode(socket, 0x1B);
+    if (action === 'pause') fireEvent.click(view.getAllByRole('button')[1]);
+    else fireEvent.click(view.getByText('automatic stop'));
+    expect(view.getByTestId('auto-start').textContent).toBe(action === 'pause' ? 'true:false' : 'false:false');
+    advance(1000);
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:01');
+    expect(view.getByText('DE-FLUFF')).toBeTruthy();
+    fireEvent.click(view.getAllByRole('button')[1]);
+    advance(1000);
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:02');
   });
 
   it('keeps retrying absent SNI indefinitely without faster attempts and connects when it appears', () => {

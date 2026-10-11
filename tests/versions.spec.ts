@@ -33,7 +33,16 @@ async function expectCustomFont(element: Locator, id: string) {
 }
 
 test('custom font upload persists locally, preserves old links and fits both timer surfaces', async ({ page, context, browser }) => {
-  await context.routeWebSocket('ws://localhost:23074', idleDevice);
+  let running = false;
+  await context.routeWebSocket('ws://localhost:23074', (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message));
+      if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
+      if (request.Opcode === 'GetAddress') {
+        socket.send(request.Operands[0] === 'f50010' ? Buffer.from([running ? 7 : 0]) : Buffer.from(memoryFrame()));
+      }
+    });
+  });
   const errors: string[] = [];
   const externalFonts: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -86,7 +95,19 @@ test('custom font upload persists locally, preserves old links and fits both tim
   const bounds = (await timer.boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(popup.viewportSize()!.width);
+  await expect(timer).toHaveText('00:00:00');
+  running = true;
+  await expect(timer).not.toHaveText('00:00:00');
+  const controls = popup.getByRole('button', { name: 'DE-FLUFF' });
+  await expect(controls).toBeVisible();
+  const controlBounds = (await controls.boundingBox())!;
+  const runningBounds = (await timer.boundingBox())!;
+  expect(controlBounds.x).toBeGreaterThanOrEqual(0);
+  expect(controlBounds.x + controlBounds.width).toBeLessThanOrEqual(popup.viewportSize()!.width);
+  expect(runningBounds.y + runningBounds.height).toBeLessThanOrEqual(controlBounds.y);
+  expect(await popup.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await popup.screenshot({ path: `test-results/custom-font-timer-${page.viewportSize()!.width}.png`, fullPage: true });
+  running = false;
   await input.setInputFiles(customFontFile);
   await expect(sample).not.toHaveCSS('font-family', `"${family}"`);
   await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('');
@@ -280,15 +301,20 @@ test('renders live preview metrics, manual controls and valid colors', async ({ 
   });
   await page.goto(`./index.html${legacyQuery}&version=2`);
   await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
+  await expect(page.locator('h2')).toHaveText('00:00:00');
+  await expect(page.getByRole('button', { name: 'DE-FLUFF' })).not.toBeVisible();
   await page.clock.runFor(125);
   await expect.poll(() => frames).toBe(1);
+  await expect(page.locator('h2')).toHaveText('00:00:01');
+  await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
   await page.clock.runFor(125);
   const checks = page.getByRole('button', { name: /^Checks/ });
   await expect(checks.locator('span')).toHaveText('55');
   await expect(page.getByText('1.9', { exact: true })).toBeVisible();
   await expect(page.getByText('16', { exact: true })).toBeVisible();
-  await page.clock.runFor(2000);
-  await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
+  await page.clock.runFor(875);
+  await expect(page.locator('h2')).toHaveText('00:00:02');
+  await page.clock.runFor(1125);
   await checks.click();
   await expect(checks.locator('span')).toHaveText('56');
   await page.getByRole('button', { name: 'DE-FLUFF' }).click();
@@ -298,6 +324,9 @@ test('renders live preview metrics, manual controls and valid colors', async ({ 
   const pausedTime = await page.locator('h2').textContent();
   await page.clock.runFor(2000);
   await expect(page.locator('h2')).toHaveText(pausedTime!);
+  await page.getByRole('button').nth(1).click();
+  await page.clock.runFor(875);
+  await expect(page.locator('h2')).toHaveText('00:00:04');
   const content = await page.locator('body').textContent();
   expect(content).not.toMatch(/NaN|Infinity/);
   const colors = await page.locator('.beveled-box[style]').evaluateAll((boxes) => boxes.map((box) => (box as HTMLElement).style.backgroundColor));

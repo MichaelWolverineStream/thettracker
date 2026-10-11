@@ -7,12 +7,13 @@ import { resolveAppearance } from '../src/preview/appearance';
 const fixture = vi.hoisted(() => ({
   data: { status: 'Connected', maxChecks: 216, checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 },
   timer: { duration: 3600000, startAt: 0, timeStarted: 0 },
+  previewHasStarted: true,
 }));
 
 vi.mock('../src/legacy/autotrack', () => ({ default: () => fixture.data }));
 vi.mock('../src/preview/autotrack', () => ({ default: () => fixture.data }));
 vi.mock('../src/legacy/components/timer', () => ({ default: () => fixture.timer }));
-vi.mock('../src/preview/components/timer', () => ({ default: () => fixture.timer }));
+vi.mock('../src/preview/components/timer', () => ({ default: () => ({ ...fixture.timer, hasStarted: fixture.previewHasStarted }) }));
 
 import LegacyApp from '../src/legacy/App';
 import PreviewApp from '../src/preview/App';
@@ -20,6 +21,7 @@ import PreviewApp from '../src/preview/App';
 afterEach(() => {
   cleanup();
   fixture.timer.duration = 3600000;
+  fixture.previewHasStarted = true;
 });
 
 describe('finite-time tracker parity', () => {
@@ -36,22 +38,36 @@ describe('finite-time tracker parity', () => {
     fixture.timer.duration = duration;
     const legacy = render(<LegacyApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />);
     const expected = legacy.container.innerHTML;
+    const expectedMetrics = legacy.container.querySelector('.inline-grid')!.outerHTML;
+    if (duration === 1000) {
+      expect(legacy.container.querySelector('h2')!.textContent).toBe('00:00:00');
+      expect(legacy.queryByText('DE-FLUFF')).toBeNull();
+    }
     legacy.unmount();
-    expect(render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />).container.innerHTML).toBe(expected);
+    const preview = render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />);
+    expect(preview.container.querySelector('.inline-grid')!.outerHTML).toBe(expectedMetrics);
+    if (duration === 1000) {
+      expect(preview.container.querySelector('h2')!.textContent).toBe('00:00:02');
+      expect(preview.getByText('DE-FLUFF')).toBeTruthy();
+    } else expect(preview.container.innerHTML).toBe(expected);
   });
 
   it.each([
-    { duration: 0, preview: '00:00:00', legacy: '00:00:00' },
-    { duration: 1500, preview: '00:00:00', legacy: '00:00:00' },
-    { duration: 1750, preview: '00:00:02', legacy: '00:00:03' },
-    { duration: 2500, preview: '00:00:03', legacy: '00:00:04' },
-  ])('applies preview-only 1000 ms timer compensation at $duration ms', ({ duration, preview, legacy }) => {
+    { duration: 0, hasStarted: false, preview: '00:00:00', legacy: '00:00:00' },
+    { duration: 0, hasStarted: true, preview: '00:00:01', legacy: '00:00:00' },
+    { duration: 1500, hasStarted: true, preview: '00:00:02', legacy: '00:00:00' },
+    { duration: 1750, hasStarted: true, preview: '00:00:02', legacy: '00:00:03' },
+    { duration: 2500, hasStarted: true, preview: '00:00:03', legacy: '00:00:04' },
+  ])('applies preview-only 1000 ms timer compensation at $duration ms with started=$hasStarted', ({ duration, hasStarted, preview, legacy }) => {
     fixture.timer.duration = duration;
+    fixture.previewHasStarted = hasStarted;
     const legacyView = render(<LegacyApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />);
     expect(legacyView.container.querySelector('h2')!.textContent).toBe(legacy);
     legacyView.unmount();
     const previewView = render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />);
     expect(previewView.container.querySelector('h2')!.textContent).toBe(preview);
+    if (hasStarted) expect(previewView.getByText('DE-FLUFF')).toBeTruthy();
+    else expect(previewView.queryByText('DE-FLUFF')).toBeNull();
   });
 
   it('uses zero startup rates with valid colors even when counts are nonzero', () => {

@@ -58,8 +58,10 @@ function App(props: userSettingsProps) {
     SPEED_MAP.current['cph'].buckets = [...LARGE_CHECK_BUCKETS];
   }
 
-  const duration = new Date(timer.duration + 1000).toISOString().substr(11, 8);
-  useFittedTimer(timerElement, customFamily, timer.duration > 1500 ? duration : '00:00:00', 36);
+  const displayDuration = timer.hasStarted
+    ? new Date(timer.duration + 1000).toISOString().substr(11, 8)
+    : '00:00:00';
+  useFittedTimer(timerElement, customFamily, displayDuration, 36);
   const seconds = Math.floor(timer.duration / 1000);
   const hours = timer.duration / 3600000;
 
@@ -134,16 +136,12 @@ function App(props: userSettingsProps) {
                 ...(font.family ? { fontFamily: font.family } : {}),
                 ...(customFamily ? { width: '100%', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '40px' } : {}),
               }}>
-                {timer.duration > 1500 ? 
-                  duration
-                : (
-                  "00:00:00"
-                )}
+                {displayDuration}
               </h2>
           </div>
         </div>
 
-        {timer.duration > 1500 && (
+        {timer.hasStarted && (
           <div className="flex justify-center items-center space-x-4 mb-4">
             <button
                 className="bg-blue-500 hover:bg-blue-700 text-white beveled-box font-bold py-1 px-3 rounded flex items-center justify-center gap-2 w-10 h-10 transition-all duration-150 ease-in-out"

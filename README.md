@@ -154,9 +154,13 @@ not an independently archived binary release. The package metadata version is
 not the user-facing tracker release label.
 
 Preview retains the original metrics, defaults, palettes and controls, with
-three intentional corrections: stop/resume preserves all elapsed time; startup
+four intentional corrections: stop/resume preserves all elapsed time; startup
 rates are zero rather than NaN/Infinity and colors remain valid; SNI recovery is
-continuous and resource-bounded. Legacy retains its original behavior and quirks.
+continuous and resource-bounded; the timer and controls appear immediately when
+automatic start is detected. The preview timer retains a +1000 ms display
+compensation, initially showing `00:00:01` after detection, and refreshes elapsed
+time every 125 ms. Controls remain available through pauses and stops. Legacy
+retains its original behavior and quirks.
 
 ## Prerequisites
 

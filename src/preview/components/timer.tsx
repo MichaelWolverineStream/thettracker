@@ -9,7 +9,7 @@ export interface TimerProps {
 
 function useTimer(props: TimerProps) {
     const { shouldStart, timerOn, setTimerOn } = useShouldStart();
-    const [timerData, setTimerData] = useState<TimerProps>(props);
+    const [timerData, setTimerData] = useState<TimerProps & { hasStarted: boolean }>({ ...props, hasStarted: false });
     const accumulated = useRef(props.startAt);
 
     useEffect(() => {
@@ -23,10 +23,10 @@ function useTimer(props: TimerProps) {
         }
 
         const started = Date.now();
-        setTimerData({ timeStarted: started, startAt: accumulated.current, duration: accumulated.current });
+        setTimerData({ timeStarted: started, startAt: accumulated.current, duration: accumulated.current, hasStarted: true });
         const interval = setInterval(() => {
             setTimerData(previous => ({ ...previous, duration: accumulated.current + Date.now() - started }));
-        }, 1000);
+        }, 125);
 
         return () => {
             clearInterval(interval);
