@@ -144,7 +144,12 @@ function attach(socket: FakeSniSocket) {
   act(() => socket.open());
   reply(socket, JSON.stringify({ Results: ['Fixture', 'Other'] }));
   expect(socket.lastCommand).toEqual({ Opcode: 'Attach', Space: 'SNES', Operands: ['Fixture'] });
-  advance(500);
+  const commands = socket.sent.length;
+  advance(124);
+  expect(socket.sent).toHaveLength(commands);
+  advance(1);
+  expect(socket.sent).toHaveLength(commands + 1);
+  expect(socket.lastCommand?.Operands).toEqual(['f50010', '1']);
 }
 
 describe('preview SNI ownership and bounded continuous recovery', () => {
@@ -213,7 +218,7 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     expect(FakeSniSocket.instances).toHaveLength(1);
     reply(socket, JSON.stringify({ Results: ['Later'] }));
     expect(socket.lastCommand?.Opcode).toBe('Attach');
-    advance(500);
+    advance(125);
     expect(socket.lastCommand?.Operands).toEqual(['f50010', '1']);
     expect(view.getByTestId('status').textContent).toBe('Connected to Later');
   });
@@ -224,7 +229,7 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     if (phase !== 'opening') act(() => socket.open());
     if (phase === 'mode' || phase === 'sram') {
       reply(socket, JSON.stringify({ Results: ['Fixture'] }));
-      advance(500);
+      advance(125);
     }
     if (phase === 'sram') mode(socket, 7);
     advance(4999);
@@ -244,7 +249,7 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     act(() => socket.open());
     advance(4999);
     reply(socket, JSON.stringify({ Results: ['Fixture'] }));
-    advance(500);
+    advance(125);
     mode(socket, 0);
     expect(socket.closeCount).toBe(0);
     expect(FakeSniSocket.instances).toHaveLength(1);
@@ -269,7 +274,7 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
       deaths: 2, rupees: 513, screens: 1026, damage: 257, magic: 385,
     });
     const modeTimes = socket.sent.filter(({ command }) => command.Operands?.[0] === 'f50010').map(({ time }) => time);
-    expect(modeTimes[1] - modeTimes[0]).toBeGreaterThanOrEqual(500);
+    expect(modeTimes[1] - modeTimes[0]).toBeGreaterThanOrEqual(125);
     act(() => socket.fail());
     const elapsed = Number(view.getByTestId('elapsed').textContent);
     advance(1000);
@@ -277,7 +282,7 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     expect(view.getByTestId('started').textContent).toBe('true');
   });
 
-  it('runs healthy polls without overlapping requests or watchdog reconnects', () => {
+  it('runs healthy polls every 125 ms without overlapping requests or watchdog reconnects', () => {
     renderSni();
     const socket = FakeSniSocket.instances[0];
     attach(socket);
@@ -287,11 +292,13 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
       expect(socket.lastCommand?.Operands?.[0]).toBe('f5f000');
       reply(socket, memoryFrame());
       const count = socket.sent.length;
-      advance(499);
+      advance(124);
       expect(socket.sent).toHaveLength(count);
       advance(1);
       expect(socket.sent).toHaveLength(count + 1);
     }
+    const modeTimes = socket.sent.filter(({ command }) => command.Operands?.[0] === 'f50010').map(({ time }) => time);
+    expect(modeTimes.slice(1).map((time, index) => time - modeTimes[index])).toEqual(Array(120).fill(125));
     expect(FakeSniSocket.instances).toHaveLength(1);
     expect(socket.closeCount).toBe(0);
   });
@@ -302,7 +309,7 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     act(() => socket.open());
     if (phase !== 'devices') {
       reply(socket, JSON.stringify({ Results: ['Fixture'] }));
-      advance(500);
+      advance(125);
     }
     if (phase === 'sram') mode(socket, 7);
     reply(socket, phase === 'devices' ? '{bad json' : new Uint8Array([1, 2]).buffer);
@@ -319,7 +326,7 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     if (phase === 'waiting-device') reply(socket, JSON.stringify({ Results: [] }));
     if (phase === 'mode' || phase === 'sram') {
       reply(socket, JSON.stringify({ Results: ['Fixture'] }));
-      advance(500);
+      advance(125);
     }
     if (phase === 'sram') mode(socket, 7);
     if (phase === 'retry') act(() => socket.fail());

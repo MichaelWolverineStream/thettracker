@@ -40,6 +40,20 @@ describe('finite-time tracker parity', () => {
     expect(render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />).container.innerHTML).toBe(expected);
   });
 
+  it.each([
+    { duration: 0, preview: '00:00:00', legacy: '00:00:00' },
+    { duration: 1500, preview: '00:00:00', legacy: '00:00:00' },
+    { duration: 1750, preview: '00:00:02', legacy: '00:00:03' },
+    { duration: 2500, preview: '00:00:03', legacy: '00:00:04' },
+  ])('applies preview-only 1000 ms timer compensation at $duration ms', ({ duration, preview, legacy }) => {
+    fixture.timer.duration = duration;
+    const legacyView = render(<LegacyApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />);
+    expect(legacyView.container.querySelector('h2')!.textContent).toBe(legacy);
+    legacyView.unmount();
+    const previewView = render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />);
+    expect(previewView.container.querySelector('h2')!.textContent).toBe(preview);
+  });
+
   it('uses zero startup rates with valid colors even when counts are nonzero', () => {
     fixture.timer.duration = 0;
     const view = render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="4" />);

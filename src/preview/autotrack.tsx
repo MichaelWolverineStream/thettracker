@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useShouldStart } from './timerContext.tsx';
 
 const RECONNECT_TIMEOUT = 5000;
-const AUTOTRACK_TIMEOUT = 500;
+const AUTOTRACK_TIMEOUT = 125;
 const WRAM_START = 0xF50000;
 const GAME_MODE = WRAM_START + 0x10;
 const SRAM_START = 0xF5F000;

@@ -58,7 +58,7 @@ function App(props: userSettingsProps) {
     SPEED_MAP.current['cph'].buckets = [...LARGE_CHECK_BUCKETS];
   }
 
-  const duration = new Date(timer.duration + 1500).toISOString().substr(11, 8);
+  const duration = new Date(timer.duration + 1000).toISOString().substr(11, 8);
   useFittedTimer(timerElement, customFamily, timer.duration > 1500 ? duration : '00:00:00', 36);
   const seconds = Math.floor(timer.duration / 1000);
   const hours = timer.duration / 3600000;

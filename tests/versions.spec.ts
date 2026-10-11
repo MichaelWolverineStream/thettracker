@@ -280,9 +280,9 @@ test('renders live preview metrics, manual controls and valid colors', async ({ 
   });
   await page.goto(`./index.html${legacyQuery}&version=2`);
   await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
-  await page.clock.runFor(500);
+  await page.clock.runFor(125);
   await expect.poll(() => frames).toBe(1);
-  await page.clock.runFor(500);
+  await page.clock.runFor(125);
   const checks = page.getByRole('button', { name: /^Checks/ });
   await expect(checks.locator('span')).toHaveText('55');
   await expect(page.getByText('1.9', { exact: true })).toBeVisible();
@@ -294,7 +294,7 @@ test('renders live preview metrics, manual controls and valid colors', async ({ 
   await page.getByRole('button', { name: 'DE-FLUFF' }).click();
   await expect(checks.locator('span')).toHaveText('55');
   await page.getByRole('button').nth(1).click();
-  await expect(page.locator('h2')).toHaveText('00:00:04');
+  await expect(page.locator('h2')).toHaveText('00:00:03');
   const pausedTime = await page.locator('h2').textContent();
   await page.clock.runFor(2000);
   await expect(page.locator('h2')).toHaveText(pausedTime!);
