@@ -136,6 +136,10 @@
 .colorStop code { font-size: 12px; color: var(--muted); }
 .fontField { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
 .fontField select { width: 100%; min-width: 0; height: 36px; padding: 4px 8px; border: 1px solid #717171; border-radius: 4px; background: #171717; color: var(--text); font: inherit; }
+.fontControls { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 4px; }
+.fontName { overflow-wrap: anywhere; color: var(--muted); font-size: 12px; }
+.fontStatus { grid-column: 1 / -1; min-height: 20px; overflow-wrap: anywhere; }
+.launch:disabled, .iconButton:disabled { opacity: 0.5; cursor: not-allowed; }
 .timerSample { min-width: 0; font-size: 30px; font-weight: 700; white-space: nowrap; text-align: right; text-shadow: 2px 2px 3px #00000080; }
 .metrics { display: grid; margin-bottom: 24px; }
 .metric { border-bottom: 1px solid #ffffff16; }

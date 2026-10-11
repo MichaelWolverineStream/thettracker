@@ -36,15 +36,18 @@ remain unchanged. URLs work relative to the deployment directory.
 
 New preview launches also include a complete `appearance` query parameter.
 The URL configures widget visibility, columns and preview appearance, not live
-counters or elapsed time. Trackers never read or write browser storage, and
-there is no progress persistence.
+counters or elapsed time. Trackers never read launcher defaults or persist
+progress. A preview tracker reads IndexedDB only to load the uploaded font
+explicitly referenced by its URL; it never writes font assets.
 
 ### Preview Appearance and Defaults
 
 The preview section offers a timer color swatch, a font menu and a passive timer
 sample. Fonts are Current (the original inherited stack), IBM Plex Mono,
-JetBrains Mono, Space Mono, Bungee, Audiowide and Monoton. Only the timer font/color changes; metric text,
-buttons, timer size, weight and shadow retain their existing presentation.
+JetBrains Mono, Space Mono, Bungee, Audiowide and Monoton, plus a local font upload.
+Only the timer font/color changes; metric text, buttons, weight and shadow retain
+their existing presentation. Uploaded fonts shrink only when necessary to fit
+the timer or sample container; bundled fonts retain their existing sizes.
 
 Each metric's palette button expands its three or five editable color stops.
 Thresholds and rate units remain fixed. Checks shows both the normal scale and
@@ -57,9 +60,10 @@ same color on rate text. Disabled metrics keep their palettes and remain editabl
   appearance and all 32 palette stops for future homepage visits.
 - **Reset** restores the preview factory draft; individual palette resets affect
   only that metric. Reset values are not persisted until Save Defaults is pressed.
-- Editing, resetting and launching do not automatically write storage. Reloading
-  discards unsaved changes. Storage failures show `Save failed` without blocking
-  Launch or changing legacy settings.
+- Editing, resetting and launching do not automatically save defaults. A
+  successful font upload separately persists its asset before it can be selected.
+  Reloading discards unsaved draft changes, not uploaded files. Defaults storage
+  failures show `Save failed` without blocking Launch or changing legacy settings.
 
 | Page | Configuration Source | Missing or Invalid Values |
 | --- | --- | --- |
@@ -88,7 +92,10 @@ For example, its decoded form can be:
 ```
 
 Font tokens are `default`, `ibm-plex-mono`, `jetbrains-mono`, `space-mono`,
-`bungee`, `audiowide` and `monoton`.
+`bungee`, `audiowide`, `monoton` and `custom`. The custom token requires a
+`timer.customFontId` containing 32 lowercase hex characters; invalid references
+fall back independently to the inherited font. IDs are meaningful only where
+the uploaded asset is stored; no font bytes or filenames travel in the URL.
 Palette keys use the existing widget query IDs. New launcher URLs include every
 palette, including disabled/default ones, and remain under 2 KB. Partial values
 are accepted for shared links: omitted fields resolve to factory appearance,
@@ -104,6 +111,33 @@ faces retain their regular outlines without synthetic bolding. See
 [font sources and license texts](src/preview/fonts/README.md). There are no
 third-party font requests or runtime font packages; legacy loads no new font
 declarations or files. Missing font files fall back to monospace.
+
+#### Uploaded Timer Fonts
+
+Use the upload button beside Timer font to choose a WOFF2, WOFF, TTF, or OTF file
+up to 5 MiB. File signatures and browser font decoding are validated; CSS,
+SVG fonts, collections, empty, corrupt, and oversized files are rejected. The
+supplied outlines are registered as normal style for weights 400-700, without
+adding synthetic bolding or separate weight controls. Use fonts you are permitted
+to use. Font files stay in this browser and are never uploaded to a server.
+
+The preview stores immutable files and bounded display names in the origin-local
+IndexedDB database `thettracker:preview:fonts`, separately from launcher defaults.
+An upload previews immediately, and Launch can use it without Save Defaults.
+Save Defaults saves only the selected ID. Importing disables Launch and Save
+Defaults until validation/storage completes; failures leave the previous draft
+usable. Reset restores the factory draft and cancels pending selection work,
+but neither Reset nor a replacement upload deletes earlier assets, so existing
+links keep working. Clearing site data removes retained uploads.
+
+Availability requires the same browser profile/storage partition and origin
+(scheme, hostname, and port). Other browsers/devices, private sessions, changed
+ports, or cleared/evicted site storage may not have the font. Those trackers
+fall back to the original inherited font while retaining URL colors, widgets,
+palettes, and live tracking. The launcher reports missing, invalid, busy, denied,
+full, or timed-out font storage without changing saved defaults. Loading never
+blocks the tracker, and font operations time out after five seconds per operation.
+There is no font hosting, cross-device transfer, or font-library deletion UI.
 
 ### Preservation Boundary
 

@@ -10,9 +10,9 @@ export const TIMER_FONTS = [
   { value: 'monoton', label: 'Monoton', family: '"Tracker Monoton", monospace' },
 ] as const;
 
-export type TimerFont = typeof TIMER_FONTS[number]['value'];
+export type TimerFont = typeof TIMER_FONTS[number]['value'] | 'custom';
 export interface AppearanceSettings {
-  timer: { color: string; font: TimerFont };
+  timer: { color: string; font: TimerFont; customFontId?: string };
   palettes: Record<WidgetName, readonly string[]>;
 }
 
@@ -52,11 +52,16 @@ export function normalizeColor(value: unknown): string | undefined {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toUpperCase() : undefined;
 }
 
+export function isCustomFontId(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
+}
+
 export function resolveAppearance(value: unknown): AppearanceSettings {
   const input = isRecord(value) ? value : {};
   const timer = isRecord(input.timer) ? input.timer : {};
   const palettes = isRecord(input.palettes) ? input.palettes : {};
-  const font = TIMER_FONTS.find((option) => option.value === timer.font)?.value ?? 'default';
+  const customFontId = timer.font === 'custom' && isCustomFontId(timer.customFontId) ? timer.customFontId : undefined;
+  const font: TimerFont = customFontId ? 'custom' : TIMER_FONTS.find((option) => option.value === timer.font)?.value ?? 'default';
   const resolved = {} as AppearanceSettings['palettes'];
   for (const name of Object.keys(METRICS) as WidgetName[]) {
     const colors: unknown = palettes[name];
@@ -64,7 +69,7 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
       ? colors.map((color) => normalizeColor(color)!)
       : [...METRICS[name].colors];
   }
-  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font }, palettes: resolved };
+  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}) }, palettes: resolved };
 }
 
 export function parseAppearance(raw: string | null): AppearanceSettings {

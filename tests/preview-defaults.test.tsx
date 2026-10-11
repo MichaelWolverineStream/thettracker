@@ -1,18 +1,81 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import LaunchPage from '../src/landing/LaunchPage';
 import { parsePreviewSettings } from '../src/preview/config';
 import { METRICS } from '../src/preview/appearance';
+import * as fontAssets from '../src/preview/customFonts';
 import { MAX_DEFAULTS_LENGTH, PREVIEW_DEFAULTS_KEY, factoryPreviewDefaults, loadPreviewDefaults, savePreviewDefaults } from '../src/landing/previewDefaults';
 
+const originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
 afterEach(() => {
   cleanup();
+  if (originalFonts) Object.defineProperty(document, 'fonts', originalFonts); else Reflect.deleteProperty(document, 'fonts');
   vi.restoreAllMocks();
   window.localStorage.clear();
 });
 
 describe('preview editor draft and save lifecycle', () => {
   const preview = () => within(screen.getByRole('region', { name: 'v0.1.0-preview' }));
+
+  it('waits for an upload commit, launches its unsaved ID and saves only metadata explicitly', async () => {
+    const id = 'a'.repeat(32);
+    let commit!: (asset: fontAssets.CustomFontAsset) => void;
+    vi.spyOn(fontAssets, 'importCustomFont').mockImplementation(() => new Promise((resolve) => { commit = resolve; }));
+    vi.spyOn(fontAssets, 'loadCustomFont').mockResolvedValue({ face: { family: fontAssets.customFontFamily(id) } as FontFace, name: 'private.woff2' });
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { add: vi.fn(), delete: vi.fn() } });
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const writes = vi.spyOn(Storage.prototype, 'setItem');
+    render(<LaunchPage />);
+    fireEvent.change(preview().getByLabelText('Custom font file'), { target: { files: [new File(['font'], 'private.woff2')] } });
+    expect((preview().getByRole('button', { name: 'Launch', exact: true }) as HTMLButtonElement).disabled).toBe(true);
+    expect((preview().getByRole('button', { name: 'Save Defaults' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.submit(preview().getByRole('button', { name: 'Launch', exact: true }).closest('form')!);
+    expect(open).not.toHaveBeenCalled();
+    await act(async () => commit({ id, name: 'private.woff2', blob: new Blob(['font']) }));
+    await waitFor(() => expect(preview().getByLabelText('Timer preview').style.fontFamily).toContain(fontAssets.customFontFamily(id)));
+    expect(writes).not.toHaveBeenCalled();
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    const url = new URL(open.mock.calls[0][0] as string, 'https://example.com/');
+    expect(parsePreviewSettings(url.search).appearance.timer).toEqual({ color: '#3B82F6', font: 'custom', customFontId: id });
+    expect(url.search).not.toContain('private');
+    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'bungee' } });
+    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'custom' } });
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    expect(loadPreviewDefaults().appearance.timer.customFontId).toBe(id);
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem(PREVIEW_DEFAULTS_KEY)).not.toContain('private');
+    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
+    expect((preview().getByLabelText('Timer font') as HTMLSelectElement).value).toBe('default');
+    expect(loadPreviewDefaults().appearance.timer.customFontId).toBe(id);
+    expect(writes).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an upload that completes after Reset', async () => {
+    let commit!: (asset: fontAssets.CustomFontAsset) => void;
+    vi.spyOn(fontAssets, 'importCustomFont').mockImplementation(() => new Promise((resolve) => { commit = resolve; }));
+    const load = vi.spyOn(fontAssets, 'loadCustomFont');
+    render(<LaunchPage />);
+    fireEvent.change(preview().getByLabelText('Custom font file'), { target: { files: [new File(['font'], 'late.woff2')] } });
+    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
+    await act(async () => commit({ id: 'a'.repeat(32), name: 'late.woff2', blob: new Blob(['font']) }));
+    expect((preview().getByLabelText('Timer font') as HTMLSelectElement).value).toBe('default');
+    expect(preview().queryByRole('option', { name: 'Custom: late.woff2' })).toBeNull();
+    expect(load).not.toHaveBeenCalled();
+    expect((preview().getByRole('button', { name: 'Launch', exact: true }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps the prior selection and launch usable after upload failure', async () => {
+    vi.spyOn(fontAssets, 'importCustomFont').mockRejectedValue(new fontAssets.CustomFontError('quota', 'Font storage full'));
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<LaunchPage />);
+    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'bungee' } });
+    fireEvent.change(preview().getByLabelText('Custom font file'), { target: { files: [new File(['font'], 'font.woff2')] } });
+    await waitFor(() => expect(preview().getByLabelText('Font status').textContent).toBe('Font storage full'));
+    expect((preview().getByLabelText('Timer font') as HTMLSelectElement).value).toBe('bungee');
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    expect(open).toHaveBeenCalledOnce();
+    expect(window.localStorage.length).toBe(0);
+  });
 
   it('launches the current unsaved draft, retaining colors on disabled metrics without writing', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);

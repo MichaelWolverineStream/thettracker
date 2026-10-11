@@ -5,7 +5,8 @@ import { TimerProps } from './components/timer.tsx'
 import useTimer from './components/timer.tsx'
 import Box from './components/statbox.tsx'
 import { useShouldStart } from './timerContext.tsx'
-import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, fontFamily, resolveAppearance, type AppearanceSettings } from './appearance';
+import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, type AppearanceSettings } from './appearance';
+import { useFittedTimer, useTimerFont } from './useTimerFont';
 
 
 
@@ -24,6 +25,9 @@ export interface userSettingsProps {
 
 function App(props: userSettingsProps) {
   const appearance = useRef(resolveAppearance(props.appearance)).current;
+  const font = useTimerFont(appearance.timer);
+  const customFamily = appearance.timer.font === 'custom' ? font.family : undefined;
+  const timerElement = useRef<HTMLHeadingElement>(null);
   const SPEED_MAP = useRef(createSpeedMap(appearance));
   const [userSettings] = useState<userSettingsProps>(props);
 
@@ -55,6 +59,7 @@ function App(props: userSettingsProps) {
   }
 
   const duration = new Date(timer.duration + 1500).toISOString().substr(11, 8);
+  useFittedTimer(timerElement, customFamily, timer.duration > 1500 ? duration : '00:00:00', 36);
   const seconds = Math.floor(timer.duration / 1000);
   const hours = timer.duration / 3600000;
 
@@ -122,11 +127,12 @@ function App(props: userSettingsProps) {
           )}
         </span>
         <div className="flex justify-center items-center space-x-4 mb-8">
-          <div className="p-4">
-              <h2 className="text-4xl font-bold text-blue-500" style={{
+          <div className="p-4" style={customFamily ? { width: '100%', minWidth: 0, maxWidth: '100%' } : undefined}>
+              <h2 ref={timerElement} className="text-4xl font-bold text-blue-500" style={{
                 textShadow: '2px 2px 3px rgba(0,0,0,0.5)',
                 ...(appearance.timer.color !== DEFAULT_TIMER_COLOR ? { color: appearance.timer.color } : {}),
-                ...(appearance.timer.font !== 'default' ? { fontFamily: fontFamily(appearance.timer.font) } : {}),
+                ...(font.family ? { fontFamily: font.family } : {}),
+                ...(customFamily ? { width: '100%', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '40px' } : {}),
               }}>
                 {timer.duration > 1500 ? 
                   duration

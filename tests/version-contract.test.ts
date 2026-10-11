@@ -49,6 +49,26 @@ describe('launch configuration', () => {
 });
 
 describe('appearance URL contract', () => {
+  it('round-trips a custom font reference without including font data or filenames', () => {
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'custom', customFontId: '0123456789abcdef0123456789abcdef', filename: 'private.ttf', data: 'bytes' } });
+    const url = buildPreviewUrl({ ...DEFAULT_LAUNCH_SETTINGS, boxes: '4', appearance });
+    expect(url.length).toBeLessThan(2048);
+    expect(parsePreviewSettings(new URL(url, 'https://example.com/nested/').search).appearance).toEqual(appearance);
+    expect(appearance.timer).toEqual({ color: '#123ABC', font: 'custom', customFontId: '0123456789abcdef0123456789abcdef' });
+    expect(url).not.toContain('private');
+    expect(url).not.toContain('bytes');
+  });
+
+  it.each([undefined, null, '', 'ABCDEF0123456789ABCDEF0123456789', 'a'.repeat(31), 'a'.repeat(33), 'url(https://example.com/font)', {}, ['a'.repeat(32)]])('rejects invalid custom font references case %# independently', (customFontId) => {
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'custom', customFontId }, palettes: { chestTurns: ['#000000', '#112233', '#FFFFFF'] } });
+    expect(appearance.timer).toEqual({ color: '#123ABC', font: 'default' });
+    expect(appearance.palettes.chestTurns).toEqual(['#000000', '#112233', '#FFFFFF']);
+  });
+
+  it('discards custom metadata when a built-in font is selected', () => {
+    expect(resolveAppearance({ timer: { font: 'bungee', customFontId: 'a'.repeat(32) } }).timer).toEqual({ color: '#3B82F6', font: 'bungee' });
+  });
+
   it.each(TIMER_FONTS)('round-trips all 32 custom stops with $label and keeps URLs compact', ({ value }) => {
     const appearance = resolveAppearance(undefined);
     appearance.timer = { color: '#123ABC', font: value };
