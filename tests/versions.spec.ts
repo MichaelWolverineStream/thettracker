@@ -39,7 +39,7 @@ test('launches independently configured preview and legacy popups', async ({ pag
   const previewPopup = await previewOpened;
   await expect(previewPopup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
   const params = new URL(previewPopup.url()).searchParams;
-  expect(params.get('version')).toBe('0.1.0-preview');
+  expect(params.get('version')).toBe('2');
   expect(params.get('bonks')).toBe('false');
   await expect(previewPopup.getByText('Bonks', { exact: true })).toHaveCount(0);
   await previewPopup.reload();
@@ -97,7 +97,7 @@ test('renders live preview metrics, manual controls and valid colors', async ({ 
       }
     });
   });
-  await page.goto(`./index.html${legacyQuery}&version=0.1.0-preview`);
+  await page.goto(`./index.html${legacyQuery}&version=2`);
   await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
   await page.clock.runFor(500);
   await expect.poll(() => frames).toBe(1);
@@ -147,7 +147,7 @@ test('recovers when SNI and then a device become available', async ({ page }) =>
       if (request.Opcode === 'GetAddress') socket.send(Buffer.from([0]));
     });
   });
-  await page.goto('./index.html?tracker=true&version=0.1.0-preview&checkCount=true&boxes=1');
+  await page.goto('./index.html?tracker=true&version=2&checkCount=true&boxes=1');
   await expect(page.getByText('Disconnected: SNI not running', { exact: true })).toBeVisible();
   await page.clock.runFor(5000);
   await expect.poll(() => connections).toBe(2);
@@ -187,6 +187,9 @@ test('loads only the selected runtime and restores strict bookmark flags', async
   expect(css).not.toContain('Tracker IBM Plex Mono');
   const favicon = await page.locator('link[rel="icon"]').getAttribute('href');
   expect((await page.request.get(new URL(favicon!, page.url()).href)).ok()).toBe(true);
+  await page.goto('./index.html?tracker=true&version=0.1.0-preview&screens=true&boxes=1');
+  await expect(page).toHaveTitle('Stonks Tracker - v0.1.0-preview');
+  await expect(page.getByText('Screens', { exact: true })).toBeVisible();
 });
 
 test('edits and saves every palette stop and launches unsaved timer choices', async ({ page, context }) => {

@@ -16,17 +16,20 @@ Existing bookmarks continue to open the exact legacy tracker, without redirects:
 <baseurl>/index.html?tracker=true&checkCount=true&bonks=true&chestTurns=true&deaths=true&rupees=true&screens=true&damage=true&magic=true&boxes=4
 ```
 
-Preview bookmarks explicitly select the version and contain their widget
+Preview bookmarks explicitly select the stable API version and contain their widget
 configuration, including disabled widgets. Older links without appearance
 settings retain the original colors and inherited timer font:
 
 ```text
-<baseurl>/index.html?tracker=true&version=0.1.0-preview&checkCount=true&bonks=false&chestTurns=false&deaths=false&rupees=false&screens=false&damage=false&magic=false&boxes=1
+<baseurl>/index.html?tracker=true&version=2&checkCount=true&bonks=false&chestTurns=false&deaths=false&rupees=false&screens=false&damage=false&magic=false&boxes=1
 ```
 
-Only literal `tracker=true` opens a tracker. Only the exact
-`version=0.1.0-preview` selects preview; absent, empty, legacy or unrecognized
-versions select legacy. Flags enable only for literal `true`, repeated keys use
+Only literal `tracker=true` opens a tracker. New tracker links use `version=2`.
+This is the URL API version, independent of visible release labels such as
+`v0.1.0-preview`; minor and patch releases do not change it. Existing
+`version=0.1.0-preview` links remain supported as a compatibility alias. Absent,
+empty, legacy or unrecognized versions select legacy. Flags enable only for
+literal `true`, repeated keys use
 their first occurrence, and missing `boxes` defaults to `3`. Existing legacy
 query parsing and launch URL generation, including malformed parameter behavior,
 remain unchanged. URLs work relative to the deployment directory.
@@ -256,7 +259,7 @@ Setup checks on October 11, 2026:
 - Chrome/Playwright smoke checks passed on development and production preview:
   settings, widget-selection popup, manual counter controls, idle offline timer,
   and local assets, with no unexpected startup errors.
-- Appearance regression coverage includes 100 unit/integration tests and 30 browser
+- Appearance regression coverage includes 105 unit/integration tests and 30 browser
   checks across desktop, popup and mobile, including root and `/tracker/`
   production builds. Existing legacy screenshot baselines remain unchanged.
 - The pre-split `npm run lint` baseline was 41 errors and 38 warnings,

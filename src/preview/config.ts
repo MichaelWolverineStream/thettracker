@@ -1,4 +1,4 @@
-import { PREVIEW_VERSION } from '../versionRouting';
+import { TRACKER_API_VERSION } from '../versionRouting';
 import { parseAppearance, resolveAppearance, type AppearanceSettings } from './appearance';
 
 export const WIDGETS = [
@@ -35,7 +35,7 @@ export function parsePreviewSettings(search: string): TrackerSettings {
 }
 
 export function buildPreviewUrl(settings: WidgetSettings & { boxes: string; appearance?: AppearanceSettings }): string {
-  const params = new URLSearchParams({ tracker: 'true', version: PREVIEW_VERSION });
+  const params = new URLSearchParams({ tracker: 'true', version: TRACKER_API_VERSION });
   for (const { name } of WIDGETS) params.set(name, String(settings[name]));
   params.set('boxes', settings.boxes);
   params.set('appearance', JSON.stringify({ v: 1, ...resolveAppearance(settings.appearance) }));

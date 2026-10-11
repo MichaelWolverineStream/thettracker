@@ -5,13 +5,17 @@ import { DEFAULT_LEGACY_SETTINGS, buildLegacyUrl } from '../src/landing/legacyLa
 import { METRICS, TIMER_FONTS, parseAppearance, resolveAppearance } from '../src/preview/appearance';
 
 describe('version routing', () => {
-  it.each(['', '?version=0.1.0-preview', '?tracker=false', '?tracker=TRUE', '?tracker=1', '?tracker=&tracker=true'])('shows landing for %s', (search) => {
+  it.each(['', '?version=2', '?version=0.1.0-preview', '?tracker=false', '?tracker=TRUE', '?tracker=1', '?tracker=&tracker=true'])('shows landing for %s', (search) => {
     expect(resolveVersion(search)).toBe('landing');
   });
-  it.each(['?tracker=true', '?tracker=true&version=', '?tracker=true&version=unknown', '?tracker=true&version=0.0.43-legacy', '?tracker=true&version=unknown&version=0.1.0-preview'])('keeps legacy for %s', (search) => {
+  it.each(['?tracker=true', '?tracker=true&version=', '?tracker=true&version=unknown', '?tracker=true&version=0.0.43-legacy', '?tracker=true&version=unknown&version=0.1.0-preview', '?tracker=true&version=unknown&version=2', '?tracker=true&version=02', '?tracker=true&version=2.1'])('keeps legacy for %s', (search) => {
     expect(resolveVersion(search)).toBe('legacy');
   });
-  it('selects only the explicit preview version', () => {
+  it('selects the new tracker with the stable API version', () => {
+    expect(resolveVersion('?tracker=true&version=2')).toBe('preview');
+    expect(resolveVersion('?tracker=true&version=2&version=unknown')).toBe('preview');
+  });
+  it('retains the original preview selector for existing bookmarks', () => {
     expect(resolveVersion('?tracker=true&version=0.1.0-preview')).toBe('preview');
   });
 });
@@ -27,7 +31,8 @@ describe('launch configuration', () => {
     expect(determineBoxCount(settings)).toBe(boxes);
     const preview = new URL(buildPreviewUrl({ ...settings, boxes }), 'https://example.com/subdirectory/');
     expect(preview.pathname).toBe('/subdirectory/index.html');
-    expect(preview.searchParams.get('version')).toBe('0.1.0-preview');
+    expect(preview.searchParams.get('version')).toBe('2');
+    expect(resolveVersion(preview.search)).toBe('preview');
     expect(parsePreviewSettings(preview.search)).toEqual({ ...settings, boxes, appearance: resolveAppearance(undefined) });
     for (const { name } of WIDGETS) expect(preview.searchParams.has(name)).toBe(true);
     const legacy = buildLegacyUrl(settings);
