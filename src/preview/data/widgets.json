@@ -1,0 +1,34 @@
+[
+    {
+        "name": "checkCount",
+        "type": "velocity"
+    },
+    {
+        "name": "bonks",
+        "type": "counter"
+    },
+    {
+        "name": "chestTurns",
+        "type": "velocity"
+    },
+    {
+        "name": "deaths",
+        "type": "counter"
+    },
+    {
+        "name": "rupees",
+        "type": "counter"
+    },
+    {
+        "name": "screens",
+        "type": "counter"
+    },
+    {
+        "name": "damage",
+        "type": "special"
+    },
+    {
+        "name": "magic",
+        "type": "special"
+    }
+]

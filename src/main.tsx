@@ -1,11 +1,12 @@
-import './css/index.css'
-import ReactDOM from 'react-dom/client'
-import LaunchPage from './launchpage.tsx'
-import Tracker from './tracker.tsx'
+import { resolveVersion } from './versionRouting';
 
-const isTracker =  new URLSearchParams(window.location.search).get('tracker') === 'true';
-ReactDOM.createRoot(document.getElementById('root')!).render(
-
-        (isTracker) ? <Tracker /> : <LaunchPage />
-
-)
+switch (resolveVersion(window.location.search)) {
+        case 'legacy':
+                void import('./legacy/main');
+                break;
+        case 'preview':
+                void import('./preview/main');
+                break;
+        default:
+                void import('./landing/main');
+}

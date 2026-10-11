@@ -1,0 +1,128 @@
+:global(html) {
+  color-scheme: dark;
+  background: #242424;
+}
+
+:global(body) {
+  margin: 0;
+}
+
+.page {
+  --text: #ededed;
+  --muted: #c4c4c4;
+  --line: #535353;
+  --focus: #60a5fa;
+  box-sizing: border-box;
+  max-width: 740px;
+  padding: 32px;
+  margin: 0 auto;
+  color: var(--text);
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+.page *, .page *::before, .page *::after {
+  box-sizing: border-box;
+}
+
+.pageHeader {
+  margin-bottom: 32px;
+}
+
+.pageHeader h1 {
+  font-size: 40px;
+  line-height: 1.1;
+  margin: 0 0 8px;
+}
+
+.pageHeader p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.section {
+  padding: 28px 0 32px;
+  border-top: 1px solid var(--line);
+}
+
+.versionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.versionHeader h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.previewBadge, .legacyBadge {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.previewBadge { color: #93c5fd; }
+.legacyBadge { color: #c4c4c4; }
+
+.widgets {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.widget {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.widget input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #60a5fa;
+}
+
+.widget span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 110px;
+  height: 40px;
+  padding: 8px 16px;
+  border: 1px solid #717171;
+  border-radius: 6px;
+  background: #171717;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  box-shadow: inset 1px 1px 2px #ffffff30, 2px 2px 4px #00000030;
+}
+
+.launch:hover { background: #383838; }
+.launch:active { background: #7f1d1d; }
+.launch:focus-visible, .widget input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+@media (max-width: 480px) {
+  .page { padding: 24px 20px; }
+  .pageHeader h1 { font-size: 36px; }
+  .versionHeader h2 { font-size: 22px; }
+}
