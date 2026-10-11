@@ -2,6 +2,7 @@ import React from 'react';
 import { render, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LAUNCH_SETTINGS } from '../src/preview/config';
+import { resolveAppearance } from '../src/preview/appearance';
 
 const fixture = vi.hoisted(() => ({
   data: { status: 'Connected', maxChecks: 216, checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 },
@@ -59,5 +60,36 @@ describe('finite-time tracker parity', () => {
     expect(view.getByText('0 Mdpm')).toBeTruthy();
     expect(view.getByText(`${Math.round(fixture.data.chestTurns / (500 / 3600000))} ctph`)).toBeTruthy();
     expect(view.container.textContent).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('applies custom timer styles and palette colors without changing metric typography', () => {
+    const appearance = resolveAppearance(undefined);
+    appearance.timer = { color: '#123456', font: 'ibm-plex-mono' };
+    appearance.palettes.checkCount = ['#112233', '#112233', '#112233', '#112233', '#112233'];
+    const view = render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="4" appearance={appearance} />);
+    const timer = view.container.querySelector('h2')!;
+    expect(timer.style.color).toBe('rgb(18, 52, 86)');
+    expect(timer.style.fontFamily).toContain('Tracker IBM Plex Mono');
+    const checks = view.getByRole('button', { name: /^Checks/ });
+    expect(checks.querySelector<HTMLDivElement>('.beveled-box')!.style.backgroundColor).toBe('rgb(17, 34, 51)');
+    expect(checks.querySelectorAll('p')[1].style.color).toBe('rgb(17, 34, 51)');
+    expect(checks.querySelector('span')!.style.fontFamily).toBe('');
+  });
+
+  it('keeps custom Checks colors through the 400/401 threshold boundary and sticky transition', () => {
+    const appearance = resolveAppearance(undefined);
+    appearance.palettes.checkCount = ['#000000', '#444444', '#888888', '#CCCCCC', '#FFFFFF'];
+    fixture.data.checkCount = 100;
+    fixture.data.maxChecks = 400;
+    const view = render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="4" appearance={appearance} />);
+    const color = () => view.getByRole('button', { name: /^Checks/ }).querySelector<HTMLDivElement>('.beveled-box')!.style.backgroundColor;
+    expect(color()).toBe('rgb(136, 136, 136)');
+    fixture.data.maxChecks = 401;
+    view.rerender(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="4" appearance={appearance} />);
+    expect(color()).toBe('rgb(0, 0, 0)');
+    fixture.data.maxChecks = 400;
+    view.rerender(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="4" appearance={appearance} />);
+    expect(color()).toBe('rgb(0, 0, 0)');
+    fixture.data.checkCount = 55;
   });
 });

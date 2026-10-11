@@ -6,6 +6,8 @@ import { ShouldStartProvider, useShouldStart } from '../src/preview/timerContext
 import Box from '../src/preview/components/statbox';
 import useAutoTrackWebSocket from '../src/preview/autotrack';
 import { FakeSniSocket, memoryFrame } from './helpers/sni';
+import { WIDGETS } from '../src/preview/config';
+import { METRICS, createSpeedMap, hexToRgb, resolveAppearance } from '../src/preview/appearance';
 
 function TimerProbe() {
   const { setShouldStart, setTimerOn, timerOn } = useShouldStart();
@@ -70,6 +72,28 @@ describe('preview timer accounting', () => {
 });
 
 describe('preview color safety', () => {
+  it.each(WIDGETS)('keeps $name custom stops, midpoint interpolation and endpoint clamping', ({ name }) => {
+    const appearance = resolveAppearance(undefined);
+    appearance.palettes[name] = METRICS[name].colors.map((_, index) => ['#102030', '#304050', '#506070', '#708090', '#90A0B0'][index]);
+    const { buckets, colors } = createSpeedMap(appearance)[METRICS[name].unit];
+    const view = render(<Box title={name} count={0} speed={0} unit="rate" buckets={buckets} colors={colors} />);
+    const color = () => view.container.querySelector<HTMLDivElement>('.beveled-box')!.style.backgroundColor;
+    for (const [index, speed] of buckets.entries()) {
+      view.rerender(<Box title={name} count={0} speed={speed} unit="rate" buckets={buckets} colors={colors} />);
+      expect(color()).toBe(`rgb(${hexToRgb(appearance.palettes[name][index]).join(', ')})`);
+      expect(view.container.querySelectorAll('p')[1].style.color).toBe(color());
+    }
+    view.rerender(<Box title={name} count={0} speed={(buckets[0] + buckets[1]) / 2} unit="rate" buckets={buckets} colors={colors} />);
+    expect(color()).toBe('rgb(32, 48, 64)');
+    expect(view.container.querySelectorAll('p')[1].style.color).toBe(color());
+    for (const speed of [Number.NaN, Number.NEGATIVE_INFINITY, buckets[0] - 1]) {
+      view.rerender(<Box title={name} count={0} speed={speed} unit="rate" buckets={buckets} colors={colors} />);
+      expect(color()).toBe('rgb(16, 32, 48)');
+    }
+    view.rerender(<Box title={name} count={0} speed={Number.POSITIVE_INFINITY} unit="rate" buckets={buckets} colors={colors} />);
+    expect(color()).toBe(`rgb(${colors[colors.length - 1].join(', ')})`);
+  });
+
   it.each([
     [Number.NaN, 'rgb(58, 134, 255)'],
     [Number.NEGATIVE_INFINITY, 'rgb(58, 134, 255)'],

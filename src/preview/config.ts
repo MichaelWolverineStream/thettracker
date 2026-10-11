@@ -1,4 +1,5 @@
 import { PREVIEW_VERSION } from '../versionRouting';
+import { parseAppearance, resolveAppearance, type AppearanceSettings } from './appearance';
 
 export const WIDGETS = [
   { name: 'checkCount', label: 'Checks (checks per hour)' },
@@ -13,7 +14,7 @@ export const WIDGETS = [
 
 export type WidgetName = typeof WIDGETS[number]['name'];
 export type WidgetSettings = Record<WidgetName, boolean>;
-export type TrackerSettings = WidgetSettings & { boxes: string };
+export type TrackerSettings = WidgetSettings & { boxes: string; appearance: AppearanceSettings };
 
 export const DEFAULT_LAUNCH_SETTINGS: Readonly<WidgetSettings> = Object.freeze(
   Object.fromEntries(WIDGETS.map(({ name }) => [name, true])) as WidgetSettings,
@@ -29,12 +30,14 @@ export function parsePreviewSettings(search: string): TrackerSettings {
   return {
     ...Object.fromEntries(WIDGETS.map(({ name }) => [name, params.get(name) === 'true'])) as WidgetSettings,
     boxes: params.get('boxes') ?? '3',
+    appearance: parseAppearance(params.get('appearance')),
   };
 }
 
-export function buildPreviewUrl(settings: TrackerSettings): string {
+export function buildPreviewUrl(settings: WidgetSettings & { boxes: string; appearance?: AppearanceSettings }): string {
   const params = new URLSearchParams({ tracker: 'true', version: PREVIEW_VERSION });
   for (const { name } of WIDGETS) params.set(name, String(settings[name]));
   params.set('boxes', settings.boxes);
+  params.set('appearance', JSON.stringify({ v: 1, ...resolveAppearance(settings.appearance) }));
   return `./index.html?${params.toString()}`;
 }

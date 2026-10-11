@@ -5,6 +5,7 @@ import { TimerProps } from './components/timer.tsx'
 import useTimer from './components/timer.tsx'
 import Box from './components/statbox.tsx'
 import { useShouldStart } from './timerContext.tsx'
+import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, fontFamily, resolveAppearance, type AppearanceSettings } from './appearance';
 
 
 
@@ -18,19 +19,12 @@ export interface userSettingsProps {
   damage: boolean;
   magic: boolean;
   boxes: string;
+  appearance?: AppearanceSettings;
 }
 
 function App(props: userSettingsProps) {
-  const SPEED_MAP = useRef({
-    'cph': {'buckets': [70, 85, 100, 115, 130], 'colors': [[58,134,255], [131,56,236], [255,0,110], [251,86,7], [255,190,11]]},
-    'mBpm': {'buckets': [0, 100, 200, 400, 800], 'colors': [[255,190,11], [251,86,7], [255,0,110], [131,56,236], [58,134,255]]},
-    'ctph': {'buckets': [0, 10, 25], 'colors': [[58,134,255], [251,86,7], [255,190,11]]},
-    'Mdpm': {'buckets': [0, 1, 5, 20, 50], 'colors': [[255,190,11], [251,86,7], [255,0,110], [131,56,236], [58,134,255]]},
-    'rph': {'buckets': [0, 1000, 3000], 'colors': [[58,134,255], [255,0,110], [255,190,11]]},
-    'sph': {'buckets': [0, 400, 800], 'colors': [[58,134,255], [255,0,110], [255,190,11]]},
-    'dph': {'buckets': [0, 25, 100], 'colors': [[58,134,255], [255,0,110], [255,190,11]]},
-    'mph': {'buckets': [0, 50, 100, 200, 400], 'colors': [[58,134,255], [131,56,236], [255,0,110], [251,86,7], [255,190,11]]}
-  });
+  const appearance = useRef(resolveAppearance(props.appearance)).current;
+  const SPEED_MAP = useRef(createSpeedMap(appearance));
   const [userSettings] = useState<userSettingsProps>(props);
 
   const timerProps = useRef<TimerProps>({
@@ -57,7 +51,7 @@ function App(props: userSettingsProps) {
   const data = useAutoTrackWebSocket(autotrackingProps.current);
   const timer = useTimer(timerProps.current);
   if (data.maxChecks > 400) {
-    SPEED_MAP.current['cph'].buckets = [150, 250, 350, 450, 550]
+    SPEED_MAP.current['cph'].buckets = [...LARGE_CHECK_BUCKETS];
   }
 
   const duration = new Date(timer.duration + 1500).toISOString().substr(11, 8);
@@ -129,7 +123,11 @@ function App(props: userSettingsProps) {
         </span>
         <div className="flex justify-center items-center space-x-4 mb-8">
           <div className="p-4">
-              <h2 className="text-4xl font-bold text-blue-500" style={{ textShadow: '2px 2px 3px rgba(0,0,0,0.5)' }}>
+              <h2 className="text-4xl font-bold text-blue-500" style={{
+                textShadow: '2px 2px 3px rgba(0,0,0,0.5)',
+                ...(appearance.timer.color !== DEFAULT_TIMER_COLOR ? { color: appearance.timer.color } : {}),
+                ...(appearance.timer.font !== 'default' ? { fontFamily: fontFamily(appearance.timer.font) } : {}),
+              }}>
                 {timer.duration > 1500 ? 
                   duration
                 : (

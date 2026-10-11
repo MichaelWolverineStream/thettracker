@@ -1,0 +1,47 @@
+@font-face {
+  font-family: "Tracker IBM Plex Mono";
+  src: url("./fonts/ibm-plex-mono-latin-700-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tracker JetBrains Mono";
+  src: url("./fonts/jetbrains-mono-latin-700-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tracker Space Mono";
+  src: url("./fonts/space-mono-latin-700-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tracker Bungee";
+  src: url("./fonts/bungee-latin-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tracker Audiowide";
+  src: url("./fonts/audiowide-latin-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tracker Monoton";
+  src: url("./fonts/monoton-latin-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}

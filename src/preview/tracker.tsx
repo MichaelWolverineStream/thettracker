@@ -25,6 +25,7 @@ function Tracker() {
                 damage={userSettingsProps.current.damage}
                 magic={userSettingsProps.current.magic}
                 boxes={userSettingsProps.current.boxes}
+                appearance={userSettingsProps.current.appearance}
             />
         </ShouldStartProvider>
     )

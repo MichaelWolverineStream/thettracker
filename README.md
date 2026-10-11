@@ -6,8 +6,9 @@ page opens a tracker window containing the selected widgets.
 ## Versions and Bookmarks
 
 The start page has two independent configuration sections: **v0.1.0-preview**
-above **v0.0.43-legacy**. Both start with all eight widgets enabled and launch
-a resizable 600x600 tracker window. Changing one section does not change the other.
+above **v0.0.43-legacy**. Factory settings enable all eight widgets; preview can
+restore explicitly saved launcher defaults. Both launch a resizable 600x600
+tracker window. Changing one section does not change the other.
 
 Existing bookmarks continue to open the exact legacy tracker, without redirects:
 
@@ -15,8 +16,9 @@ Existing bookmarks continue to open the exact legacy tracker, without redirects:
 <baseurl>/index.html?tracker=true&checkCount=true&bonks=true&chestTurns=true&deaths=true&rupees=true&screens=true&damage=true&magic=true&boxes=4
 ```
 
-Preview bookmarks explicitly select the version and contain their full widget
-configuration, including disabled widgets:
+Preview bookmarks explicitly select the version and contain their widget
+configuration, including disabled widgets. Older links without appearance
+settings retain the original colors and inherited timer font:
 
 ```text
 <baseurl>/index.html?tracker=true&version=0.1.0-preview&checkCount=true&bonks=false&chestTurns=false&deaths=false&rupees=false&screens=false&damage=false&magic=false&boxes=1
@@ -29,9 +31,76 @@ their first occurrence, and missing `boxes` defaults to `3`. Existing legacy
 query parsing and launch URL generation, including malformed parameter behavior,
 remain unchanged. URLs work relative to the deployment directory.
 
-The URL configures widget visibility and columns, not live counters or elapsed
-time. There is no browser-storage dependency or progress persistence. Button and
-metric color configuration is planned for preview later, not included yet.
+New preview launches also include a complete `appearance` query parameter.
+The URL configures widget visibility, columns and preview appearance, not live
+counters or elapsed time. Trackers never read or write browser storage, and
+there is no progress persistence.
+
+### Preview Appearance and Defaults
+
+The preview section offers a timer color swatch, a font menu and a passive timer
+sample. Fonts are Current (the original inherited stack), IBM Plex Mono,
+JetBrains Mono, Space Mono, Bungee, Audiowide and Monoton. Only the timer font/color changes; metric text,
+buttons, timer size, weight and shadow retain their existing presentation.
+
+Each metric's palette button expands its three or five editable color stops.
+Thresholds and rate units remain fixed. Checks shows both the normal scale and
+the scale for more than 400 maximum checks. The ramp strip previews the palette;
+tracker tiles remain solid colors interpolated from the current rate, with the
+same color on rate text. Disabled metrics keep their palettes and remain editable.
+
+- **Launch** uses the current draft, including unsaved edits, without saving it.
+- **Save Defaults** explicitly saves all eight visibility selections, timer
+  appearance and all 32 palette stops for future homepage visits.
+- **Reset** restores the preview factory draft; individual palette resets affect
+  only that metric. Reset values are not persisted until Save Defaults is pressed.
+- Editing, resetting and launching do not automatically write storage. Reloading
+  discards unsaved changes. Storage failures show `Save failed` without blocking
+  Launch or changing legacy settings.
+
+| Page | Configuration Source | Missing or Invalid Values |
+| --- | --- | --- |
+| Homepage preview | Saved local defaults, then current draft | Factory launcher defaults; all widgets enabled |
+| Launched preview tracker | URL only | Factory appearance; missing widget flags disabled |
+| Legacy launcher/tracker | Original launcher selections/URL behavior | Original legacy behavior |
+
+Defaults use the origin-local key
+`thettracker:launcher:0.1.0-preview:defaults:v1`, with the envelope
+`{v:1, widgets:{...}, appearance:{timer:{...}, palettes:{...}}}`. Columns are
+derived rather than stored. No counters, elapsed time, SNI state or legacy
+settings are saved. Defaults do not synchronize across devices or origins;
+saving them does not alter a tracker that is already open.
+
+The `appearance` URL value is versioned JSON, encoded by `URLSearchParams`.
+For example, its decoded form can be:
+
+```json
+{
+  "v": 1,
+  "timer": { "color": "#3B82F6", "font": "ibm-plex-mono" },
+  "palettes": {
+    "checkCount": ["#3A86FF", "#8338EC", "#FF006E", "#FB5607", "#FFBE0B"]
+  }
+}
+```
+
+Font tokens are `default`, `ibm-plex-mono`, `jetbrains-mono`, `space-mono`,
+`bungee`, `audiowide` and `monoton`.
+Palette keys use the existing widget query IDs. New launcher URLs include every
+palette, including disabled/default ones, and remain under 2 KB. Partial values
+are accepted for shared links: omitted fields resolve to factory appearance,
+not saved defaults. Colors must be opaque six-digit hex and normalize uppercase.
+Invalid timer fields fall back independently; a wrong stop count or invalid
+color resets that metric's entire palette. Unsupported `v`, malformed JSON or
+values longer than 4096 decoded characters reset the full appearance. Unknown
+fields, arbitrary CSS and font URLs are not applied. First repeated keys win.
+
+The six optional fonts are bundled locally as Latin, normal-style WOFF2 files
+from Fontsource 5.3.0, under SIL OFL 1.1. Monospace faces use bold 700; the display
+faces retain their regular outlines without synthetic bolding. See
+[font sources and license texts](src/preview/fonts/README.md). There are no
+third-party font requests or runtime font packages; legacy loads no new font
+declarations or files. Missing font files fall back to monospace.
 
 ### Preservation Boundary
 
@@ -164,8 +233,9 @@ The browser suite uses locally installed Google Chrome and runs on desktop,
 600x600 popup and mobile viewports. Unit tests use fake clocks and a controlled
 SNI implementation; browser tests intercept WebSockets rather than requiring
 hardware. They cover URL contracts, legacy screenshots, real launch popups,
-finite-time feature parity, timer accumulation, color safety, delayed SNI/device
-availability, serialized polling and terminal cleanup. Screenshots are captured
+finite-time feature parity, timer accumulation, color safety, saved defaults,
+unsaved launches, storage failures, URL-only appearance, bundled fonts, delayed
+SNI/device availability, serialized polling and terminal cleanup. Screenshots are captured
 on macOS; browser rendering differences on other platforms need separate baselines.
 
 To run the same browser checks against an already running production preview:
@@ -186,6 +256,9 @@ Setup checks on October 11, 2026:
 - Chrome/Playwright smoke checks passed on development and production preview:
   settings, widget-selection popup, manual counter controls, idle offline timer,
   and local assets, with no unexpected startup errors.
+- Appearance regression coverage includes 100 unit/integration tests and 30 browser
+  checks across desktop, popup and mobile, including root and `/tracker/`
+  production builds. Existing legacy screenshot baselines remain unchanged.
 - The pre-split `npm run lint` baseline was 41 errors and 38 warnings,
   including unused declarations, type/style issues, and hook dependencies. These
   remain in frozen legacy; repository-wide lint is not a release gate for this
