@@ -1,20 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { TIMER_LANGUAGES } from '../src/preview/appearance';
+import { languageTag, TIMER_LANGUAGES } from '../src/preview/appearance';
 import { formatWords, splitDuration, timerText } from '../src/preview/timerFormat';
 import { WORDS } from '../src/preview/words';
+import { emojiNumber } from '../src/preview/words/emoji';
 import { spanishNumber } from '../src/preview/words/es';
 import { frenchNumber } from '../src/preview/words/fr';
 import { nativeKoreanCount, sinoKoreanNumber } from '../src/preview/words/ko';
 import { latinNumber } from '../src/preview/words/la';
+import { quenyaNumber } from '../src/preview/words/qya';
+import { russianNumber, russianPluralForm } from '../src/preview/words/ru';
 import { swedishNumber } from '../src/preview/words/sv';
+import { klingonNumber } from '../src/preview/words/tlh';
 
 const time = (hours: number, minutes: number, seconds: number) => ((hours * 60 + minutes) * 60 + seconds) * 1000;
 
 describe('words timer languages', () => {
   it('has a formatter and a not-started phrase for every language', () => {
-    expect(TIMER_LANGUAGES.map(({ value }) => value)).toEqual(['en', 'fr', 'sv', 'es', 'ko', 'la']);
+    expect(TIMER_LANGUAGES.map(({ value }) => value)).toEqual(['en', 'fr', 'sv', 'es', 'ko', 'la', 'ru', 'tlh', 'qya', 'emoji', 'mrt']);
+    expect(TIMER_LANGUAGES.map(({ value }) => languageTag(value))).toEqual(['en', 'fr', 'sv', 'es', 'ko', 'la', 'ru', 'tlh', 'qya', 'en', 'en']);
     expect(TIMER_LANGUAGES.map(({ value }) => WORDS[value].notStarted)).toEqual([
       'There is still time', 'Il est encore temps', 'Det finns fortfarande tid', 'Todavía hay tiempo', '아직 시간이 있어요', 'Adhuc tempus est',
+      'Ещё есть время', "poH tu'lu'", "Elen síla lúmenn' omentielvo", '⏳👍', "I pity the fool who ain't started!",
     ]);
     for (const { value } of TIMER_LANGUAGES) expect(timerText('words', 0, value)).toBe(WORDS[value].notStarted);
   });
@@ -147,5 +153,110 @@ describe('Latin', () => {
     [time(1000, 0, 1), '1000 horae et unum secundum'],
   ])('writes %i ms as "%s"', (ms, expected) => {
     expect(timerText('words', ms, 'la')).toBe(expected);
+  });
+});
+
+describe('Russian', () => {
+  it.each([
+    [1, 'm', 'один'], [1, 'f', 'одна'], [2, 'm', 'два'], [2, 'f', 'две'], [5, 'f', 'пять'], [10, 'm', 'десять'], [11, 'f', 'одиннадцать'],
+    [12, 'f', 'двенадцать'], [19, 'm', 'девятнадцать'], [20, 'm', 'двадцать'], [21, 'm', 'двадцать один'], [21, 'f', 'двадцать одна'],
+    [22, 'f', 'двадцать две'], [40, 'm', 'сорок'], [59, 'f', 'пятьдесят девять'], [100, 'm', 'сто'], [101, 'f', 'сто одна'],
+    [112, 'f', 'сто двенадцать'], [200, 'm', 'двести'], [999, 'm', 'девятьсот девяносто девять'], [1000, 'm', '1000'],
+  ] as const)('spells %i (%s) as %s', (value, gender, expected) => {
+    expect(russianNumber(value, gender)).toBe(expected);
+  });
+
+  it.each([
+    [1, 0], [2, 1], [4, 1], [5, 2], [11, 2], [12, 2], [14, 2], [20, 2], [21, 0], [22, 1], [25, 2], [101, 0], [111, 2], [112, 2], [1000, 2], [1001, 0],
+  ])('uses plural form %i -> %i', (value, form) => {
+    expect(russianPluralForm(value)).toBe(form);
+  });
+
+  it.each([
+    [time(0, 0, 1), 'Одна секунда'],
+    [time(0, 0, 3), 'Три секунды'],
+    [time(0, 0, 5), 'Пять секунд'],
+    [time(1, 0, 0), 'Один час'],
+    [time(2, 0, 0), 'Два часа'],
+    [time(0, 4, 3), 'Четыре минуты и три секунды'],
+    [time(1, 4, 3), 'Один час, четыре минуты и три секунды'],
+    [time(11, 11, 11), 'Одиннадцать часов, одиннадцать минут и одиннадцать секунд'],
+    [time(21, 21, 21), 'Двадцать один час, двадцать одна минута и двадцать одна секунда'],
+    [time(22, 22, 22), 'Двадцать два часа, двадцать две минуты и двадцать две секунды'],
+    [time(1000, 0, 1), '1000 часов и одна секунда'],
+  ])('writes %i ms as "%s"', (ms, expected) => {
+    expect(timerText('words', ms, 'ru')).toBe(expected);
+  });
+});
+
+describe('Klingon', () => {
+  it.each([
+    [1, "wa'"], [9, 'Hut'], [10, "wa'maH"], [11, "wa'maH wa'"], [20, "cha'maH"], [21, "cha'maH wa'"], [59, 'vaghmaH Hut'], [99, 'HutmaH Hut'],
+    [100, "wa'vatlh"], [101, "wa'vatlh wa'"], [110, "wa'vatlh wa'maH"], [999, 'Hutvatlh HutmaH Hut'], [1000, '1000'],
+  ])('spells %i as %s', (value, expected) => {
+    expect(klingonNumber(value)).toBe(expected);
+  });
+
+  it.each([
+    [time(0, 0, 1), "wa' lup"],
+    [time(0, 0, 3), 'wej lup'],
+    [time(2, 0, 0), "cha' rep"],
+    [time(0, 4, 3), 'loS tup wej lup je'],
+    [time(1, 4, 3), "wa' rep loS tup wej lup je"],
+    [time(23, 59, 59), "cha'maH wej rep vaghmaH Hut tup vaghmaH Hut lup je"],
+    [time(1000, 0, 1), "1000 rep wa' lup je"],
+  ])('writes %i ms as "%s"', (ms, expected) => {
+    expect(timerText('words', ms, 'tlh')).toBe(expected);
+  });
+});
+
+describe('Quenya', () => {
+  it.each([
+    [1, 'min'], [2, 'atta'], [3, 'neldë'], [10, 'quëan'], [11, 'minquë'], [12, 'yunquë'], [13, 'nelquë'], [19, 'neterquë'], [20, 'yuquain'],
+    [21, 'min yuquain'], [35, 'lempë nelquain'], [40, 'canquain'], [59, 'nertë lepenquain'], [99, 'nertë neterquain'], [100, '100'],
+  ])('spells %i as %s', (value, expected) => {
+    expect(quenyaNumber(value)).toBe(expected);
+  });
+
+  it.each([
+    [time(0, 0, 1), 'Min attëa enenquaista'],
+    [time(0, 0, 2), 'Attëa enenquaista atta'],
+    [time(0, 0, 3), 'Attië enenquaistar neldë'],
+    [time(1, 0, 0), 'Min lúmë'],
+    [time(2, 0, 0), 'Lúmë atta'],
+    [time(0, 4, 3), 'Enenquaistar canta ar attië enenquaistar neldë'],
+    [time(1, 4, 3), 'Min lúmë, enenquaistar canta ar attië enenquaistar neldë'],
+    [time(23, 59, 59), 'Lúmi neldë yuquain, enenquaistar nertë lepenquain ar attië enenquaistar nertë lepenquain'],
+    [time(100, 0, 1), 'Lúmi 100 ar min attëa enenquaista'],
+  ])('writes %i ms as "%s"', (ms, expected) => {
+    expect(timerText('words', ms, 'qya')).toBe(expected);
+  });
+});
+
+describe('Emoji', () => {
+  const keycap = '\uFE0F\u20E3';
+
+  it.each([
+    [7, `7${keycap}`], [10, `1${keycap}0${keycap}`], [1000, `1${keycap}0${keycap}0${keycap}0${keycap}`],
+  ])('spells %i as keycaps', (value, expected) => {
+    expect(emojiNumber(value)).toBe(expected);
+  });
+
+  it.each([
+    [time(0, 0, 3), `3${keycap}⚡`],
+    [time(0, 4, 0), `4${keycap}⏱\uFE0F`],
+    [time(1, 4, 3), `1${keycap}🕐 4${keycap}⏱\uFE0F 3${keycap}⚡`],
+    [time(1, 0, 59), `1${keycap}🕐 5${keycap}9${keycap}⚡`],
+  ])('writes %i ms as emoji', (ms, expected) => {
+    expect(timerText('words', ms, 'emoji')).toBe(expected);
+  });
+});
+
+describe('Mr. T', () => {
+  it.each([
+    [time(0, 0, 1), 'One second, fool!'],
+    [time(1, 4, 3), 'One hour, four minutes, and three seconds, fool!'],
+  ])('writes %i ms as "%s"', (ms, expected) => {
+    expect(timerText('words', ms, 'mrt')).toBe(expected);
   });
 });

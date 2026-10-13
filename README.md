@@ -86,14 +86,33 @@ The language is kept when switching to another style and back.
 | Español | `es` | Una hora, cuatro minutos y tres segundos | Todavía hay tiempo |
 | 한국어 | `ko` | 한 시간 사 분 삼 초 | 아직 시간이 있어요 |
 | Latina | `la` | Una hora, quattuor minuta et tria secunda | Adhuc tempus est |
+| Русский | `ru` | Один час, четыре минуты и три секунды | Ещё есть время |
+| tlhIngan Hol (Klingon) | `tlh` | wa' rep loS tup wej lup je | poH tu'lu' |
+| Quenya (Elvish) | `qya` | Min lúmë, enenquaistar canta ar attië enenquaistar neldë | Elen síla lúmenn' omentielvo |
+| Emoji | `emoji` | 1️⃣🕐 4️⃣⏱️ 3️⃣⚡ | ⏳👍 |
+| Mr. T | `mrt` | One hour, four minutes, and three seconds, fool! | I pity the fool who ain't started! |
 
 Numbers agree with each noun's gender (for example Spanish *veintiún minutos*,
-Latin *duae horae*). French, Swedish, Spanish and Latin join the last two units
-with their own "and" and use no Oxford comma. Korean counts hours with native
+Latin *duae horae*, Russian *двадцать одна минута*), and Russian nouns take its
+one/few/many plural forms (*час*, *часа*, *часов*). French, Swedish, Spanish,
+Latin, Russian and Quenya join the last two units with their own "and" and use
+no Oxford comma. Korean counts hours with native
 numbers below 100 (*스무 시간*) and uses Sino-Korean numbers otherwise
-(*오십구 분*), separating units by spaces only. Languages other than
-English write 1000 or more hours as digits (*1000 heures*). Bundled fonts have no
-Hangul glyphs, so Korean text uses the system fallback font.
+(*오십구 분*), separating units by spaces only. Spelled-out languages other than
+English and Mr. T write 1000 or more hours as digits (*1000 heures*); Quenya does
+so from 100 hours. Bundled fonts include only Latin glyphs, so Korean and Russian
+text uses the system fallback font, and emoji use the system emoji font in their
+own colors rather than the timer color.
+
+Klingon uses its standard Latin transcription, where capital letters are
+distinct sounds, so it is never capitalized (all-caps fonts such as Bungee
+still hide that distinction). Nouns take no plural after a number,
+and *je* ("and") follows the last unit. Quenya is a neo-Quenya approximation:
+13 and the tens are scholarly reconstructions, and because Tolkien left no words
+for minute or second, they are coined from *enenquaista* ("a sixtieth"),
+following the Latin origin of the English words. Its not-started phrase is
+Tolkien's "a star shines on the hour of our meeting". Mr. T adds *, fool!* to
+the English text.
 
 Each metric's palette button expands its three or five editable color stops.
 Thresholds and rate units remain fixed. Checks shows both the normal scale and

@@ -608,12 +608,12 @@ test('writes the words timer in every language inside each viewport', async ({ p
   await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
   await page.routeWebSocket('ws://localhost:23074', runningDevice);
   const { width } = page.viewportSize()!;
-  for (const { value } of TIMER_LANGUAGES) {
+  for (const { value, lang } of TIMER_LANGUAGES) {
     const appearance = resolveAppearance({ timer: { color: '#C43D52', font: 'bungee', variant: 'words', language: value } });
     await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
     await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
     const timer = page.locator('h2');
-    await expect(timer.locator('.timer-face-words')).toHaveAttribute('lang', value);
+    await expect(timer.locator('.timer-face-words')).toHaveAttribute('lang', lang);
     await expect(timer).toHaveText(timerText('words', 0, value));
     await page.clock.runFor(125);
     await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
@@ -640,10 +640,10 @@ test('picks a words language in the launcher and launches it', async ({ page, co
   await preview.getByLabel('Timer style', { exact: true }).selectOption('words');
   const language = preview.getByLabel('Words language', { exact: true });
   await expect(language.locator('option')).toHaveCount(TIMER_LANGUAGES.length);
-  for (const { value } of TIMER_LANGUAGES) {
+  for (const { value, lang } of TIMER_LANGUAGES) {
     await language.selectOption(value);
     await expect(sample).toHaveText(timerText('words', 3843000, value));
-    await expect(sample.locator('.timer-face-words')).toHaveAttribute('lang', value);
+    await expect(sample.locator('.timer-face-words')).toHaveAttribute('lang', lang);
     await page.evaluate(() => document.fonts.ready);
     expect(await sample.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

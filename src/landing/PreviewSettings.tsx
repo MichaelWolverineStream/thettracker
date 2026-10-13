@@ -130,7 +130,7 @@ export default function PreviewSettings() {
                 <div className={styles.languageField}>
                   <label htmlFor="preview-timer-language">Words language</label>
                   <select id="preview-timer-language" value={language} onChange={(event) => changeTimer({ language: event.target.value as TimerLanguage })}>
-                    {TIMER_LANGUAGES.map(({ value, label }) => <option key={value} value={value} lang={value}>{label}</option>)}
+                    {TIMER_LANGUAGES.map(({ value, label, lang }) => <option key={value} value={value} lang={lang}>{label}</option>)}
                   </select>
                 </div>
               )}

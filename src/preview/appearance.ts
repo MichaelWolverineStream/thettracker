@@ -22,13 +22,19 @@ export const TIMER_VARIANTS = [
   { value: 'roman', label: 'Roman numerals', usesFont: true, layout: 'line' },
 ] as const;
 
+// `lang` is the HTML language tag; novelty styles without their own tag read as English.
 export const TIMER_LANGUAGES = [
-  { value: 'en', label: 'English' },
-  { value: 'fr', label: 'Français' },
-  { value: 'sv', label: 'Svenska' },
-  { value: 'es', label: 'Español' },
-  { value: 'ko', label: '한국어' },
-  { value: 'la', label: 'Latina' },
+  { value: 'en', label: 'English', lang: 'en' },
+  { value: 'fr', label: 'Français', lang: 'fr' },
+  { value: 'sv', label: 'Svenska', lang: 'sv' },
+  { value: 'es', label: 'Español', lang: 'es' },
+  { value: 'ko', label: '한국어', lang: 'ko' },
+  { value: 'la', label: 'Latina', lang: 'la' },
+  { value: 'ru', label: 'Русский', lang: 'ru' },
+  { value: 'tlh', label: 'tlhIngan Hol (Klingon)', lang: 'tlh' },
+  { value: 'qya', label: 'Quenya (Elvish)', lang: 'qya' },
+  { value: 'emoji', label: 'Emoji', lang: 'en' },
+  { value: 'mrt', label: 'Mr. T', lang: 'en' },
 ] as const;
 
 export type TimerFont = typeof TIMER_FONTS[number]['value'] | 'custom';
@@ -103,6 +109,10 @@ export function timerVariant(timer: AppearanceSettings['timer']) {
 
 export function timerLanguage(timer: AppearanceSettings['timer']): TimerLanguage {
   return timer.language ?? 'en';
+}
+
+export function languageTag(language: TimerLanguage): string {
+  return TIMER_LANGUAGES.find((option) => option.value === language)!.lang;
 }
 
 export function parseAppearance(raw: string | null): AppearanceSettings {

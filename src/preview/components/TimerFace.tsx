@@ -1,4 +1,4 @@
-import type { TimerLanguage, TimerVariant } from '../appearance';
+import { languageTag, type TimerLanguage, type TimerVariant } from '../appearance';
 import { formatClock, timerText } from '../timerFormat';
 import AnalogClock from './timerFaces/AnalogClock';
 import BinaryClock from './timerFaces/BinaryClock';
@@ -14,7 +14,7 @@ export default function TimerFace({ variant, ms, scale = 1, language = 'en' }: {
     case 'lcd': return <SevenSegment clock={clock} height={52 * scale} />;
     case 'binary': return <BinaryClock clock={clock} height={72 * scale} />;
     case 'flip': return <FlipClock clock={clock} />;
-    case 'words': return <span className="timer-face-words" lang={language}>{timerText(variant, ms, language)}</span>;
+    case 'words': return <span className="timer-face-words" lang={languageTag(language)}>{timerText(variant, ms, language)}</span>;
     default: return <>{timerText(variant, ms)}</>;
   }
 }

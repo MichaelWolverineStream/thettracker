@@ -183,6 +183,7 @@ describe('preview editor draft and save lifecycle', () => {
     expect(language().value).toBe('en');
     expect([...language().options].map((option) => [option.value, option.lang, option.textContent])).toEqual([
       ['en', 'en', 'English'], ['fr', 'fr', 'Français'], ['sv', 'sv', 'Svenska'], ['es', 'es', 'Español'], ['ko', 'ko', '한국어'], ['la', 'la', 'Latina'],
+      ['ru', 'ru', 'Русский'], ['tlh', 'tlh', 'tlhIngan Hol (Klingon)'], ['qya', 'qya', 'Quenya (Elvish)'], ['emoji', 'en', 'Emoji'], ['mrt', 'en', 'Mr. T'],
     ]);
     fireEvent.change(language(), { target: { value: 'ko' } });
     expect(sample().textContent).toBe('한 시간 사 분 삼 초');
