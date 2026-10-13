@@ -172,6 +172,56 @@ describe('preview editor draft and save lifecycle', () => {
     expect(style().value).toBe('flip');
   });
 
+  it('shows the words language only for Words, keeps it across styles and launches it', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<LaunchPage />);
+    const style = preview().getByLabelText('Timer style') as HTMLSelectElement;
+    const language = () => preview().getByLabelText('Words language') as HTMLSelectElement;
+    const sample = () => preview().getByLabelText('Timer preview');
+    expect(preview().queryByLabelText('Words language')).toBeNull();
+    fireEvent.change(style, { target: { value: 'words' } });
+    expect(language().value).toBe('en');
+    expect([...language().options].map((option) => [option.value, option.lang, option.textContent])).toEqual([
+      ['en', 'en', 'English'], ['fr', 'fr', 'Français'], ['sv', 'sv', 'Svenska'], ['es', 'es', 'Español'], ['ko', 'ko', '한국어'], ['la', 'la', 'Latina'],
+    ]);
+    fireEvent.change(language(), { target: { value: 'ko' } });
+    expect(sample().textContent).toBe('한 시간 사 분 삼 초');
+    expect(sample().querySelector('[lang="ko"]')).not.toBeNull();
+    fireEvent.change(style, { target: { value: 'roman' } });
+    expect(preview().queryByLabelText('Words language')).toBeNull();
+    expect(sample().textContent).toBe('I:IV:III');
+    fireEvent.change(style, { target: { value: 'words' } });
+    expect(language().value).toBe('ko');
+    fireEvent.change(language(), { target: { value: 'la' } });
+    expect(sample().textContent).toBe('Una hora, quattuor minuta et tria secunda');
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'words', language: 'la' });
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('saves and resets the words language without false unsaved changes', () => {
+    render(<LaunchPage />);
+    const language = () => preview().getByLabelText('Words language') as HTMLSelectElement;
+    const status = () => preview().getByRole('status').textContent;
+    fireEvent.change(preview().getByLabelText('Timer style'), { target: { value: 'words' } });
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    fireEvent.change(language(), { target: { value: 'fr' } });
+    expect(status()).toBe('Unsaved');
+    fireEvent.change(language(), { target: { value: 'en' } });
+    expect(status()).toBe('');
+    fireEvent.change(language(), { target: { value: 'sv' } });
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    expect(status()).toBe('Saved');
+    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'words', language: 'sv' });
+    expect(preview().getByLabelText('Timer preview').textContent).toBe('En timme, fyra minuter och tre sekunder');
+    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
+    expect(preview().queryByLabelText('Words language')).toBeNull();
+    expect(loadPreviewDefaults().appearance.timer.language).toBe('sv');
+    cleanup();
+    render(<LaunchPage />);
+    expect(language().value).toBe('sv');
+  });
+
   it('loads only at mount, saves explicitly, and resets only the current draft until saved', () => {
     const initial = factoryPreviewDefaults();
     initial.widgets.magic = false;

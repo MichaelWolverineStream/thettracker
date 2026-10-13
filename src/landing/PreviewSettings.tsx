@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { ArrowUpRight, ChevronDown, Palette, RotateCcw, Save, Upload } from 'lucide-react';
 import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetName } from '../preview/config';
-import { LARGE_CHECK_BUCKETS, METRICS, TIMER_FONTS, TIMER_VARIANTS, normalizeColor, resolveAppearance, timerVariant, type TimerFont, type TimerVariant } from '../preview/appearance';
+import { LARGE_CHECK_BUCKETS, METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, normalizeColor, resolveAppearance, timerLanguage, timerVariant, type TimerFont, type TimerLanguage, type TimerVariant } from '../preview/appearance';
 import TimerFace from '../preview/components/TimerFace';
 import { fontErrorMessage, importCustomFont } from '../preview/customFonts';
 import { timerText } from '../preview/timerFormat';
@@ -34,12 +34,13 @@ export default function PreviewSettings() {
   const fileInput = useRef<HTMLInputElement>(null);
   const sample = useRef<HTMLDivElement>(null);
   const variant = timerVariant(draft.appearance.timer);
+  const language = timerLanguage(draft.appearance.timer);
   const font = useTimerFont(draft.appearance.timer);
   const family = variant.usesFont ? font.family : undefined;
   const customFamily = draft.appearance.timer.font === 'custom' ? family : undefined;
   const sampleMs = variant.value === 'digital' ? 0 : SAMPLE_MS;
   const sampleFit = variant.layout === 'line' ? customFamily ?? (variant.value === 'digital' ? undefined : variant.value) : undefined;
-  useFittedTimer(sample, sampleFit, timerText(variant.value, sampleMs), 30);
+  useFittedTimer(sample, sampleFit, timerText(variant.value, sampleMs, language), 30);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   useEffect(() => () => { uploadSequence.current += 1; }, []);
@@ -72,7 +73,7 @@ export default function PreviewSettings() {
     edit((previous) => ({ ...previous, appearance: { ...previous.appearance, palettes: { ...previous.appearance.palettes, [name]: colors } } }));
   }
 
-  function changeTimer(update: { font?: TimerFont; customFontId?: string; variant?: TimerVariant }) {
+  function changeTimer(update: { font?: TimerFont; customFontId?: string; variant?: TimerVariant; language?: TimerLanguage }) {
     edit((previous) => ({ ...previous, appearance: { ...previous.appearance, timer: resolveAppearance({ timer: { ...previous.appearance.timer, ...update } }).timer } }));
   }
 
@@ -125,6 +126,14 @@ export default function PreviewSettings() {
                   {TIMER_VARIANTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </div>
+              {variant.value === 'words' && (
+                <div className={styles.languageField}>
+                  <label htmlFor="preview-timer-language">Words language</label>
+                  <select id="preview-timer-language" value={language} onChange={(event) => changeTimer({ language: event.target.value as TimerLanguage })}>
+                    {TIMER_LANGUAGES.map(({ value, label }) => <option key={value} value={value} lang={value}>{label}</option>)}
+                  </select>
+                </div>
+              )}
               <div className={styles.fontField}>
                 <label htmlFor="preview-timer-font">Timer font</label>
                 <div className={styles.fontControls}>
@@ -142,7 +151,7 @@ export default function PreviewSettings() {
                 {customFont && <span className={styles.fontName} title={customFont.name}>{customFont.name}</span>}
               </div>
             </div>
-            <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: family, ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}><TimerFace variant={variant.value} ms={sampleMs} scale={0.5} /></div>
+            <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: family, ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}><TimerFace variant={variant.value} ms={sampleMs} scale={0.5} language={language} /></div>
             <span aria-label="Font status" aria-live="polite" className={`${styles.fontStatus} ${uploadError || font.error ? styles.error : styles.status}`}>{importing ? 'Importing font' : uploadError ?? (font.loading ? 'Loading font' : font.error ?? '')}</span>
           </div>
         </fieldset>

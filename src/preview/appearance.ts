@@ -22,10 +22,20 @@ export const TIMER_VARIANTS = [
   { value: 'roman', label: 'Roman numerals', usesFont: true, layout: 'line' },
 ] as const;
 
+export const TIMER_LANGUAGES = [
+  { value: 'en', label: 'English' },
+  { value: 'fr', label: 'Français' },
+  { value: 'sv', label: 'Svenska' },
+  { value: 'es', label: 'Español' },
+  { value: 'ko', label: '한국어' },
+  { value: 'la', label: 'Latina' },
+] as const;
+
 export type TimerFont = typeof TIMER_FONTS[number]['value'] | 'custom';
 export type TimerVariant = typeof TIMER_VARIANTS[number]['value'];
+export type TimerLanguage = typeof TIMER_LANGUAGES[number]['value'];
 export interface AppearanceSettings {
-  timer: { color: string; font: TimerFont; customFontId?: string; variant?: Exclude<TimerVariant, 'digital'> };
+  timer: { color: string; font: TimerFont; customFontId?: string; variant?: Exclude<TimerVariant, 'digital'>; language?: Exclude<TimerLanguage, 'en'> };
   palettes: Record<WidgetName, readonly string[]>;
 }
 
@@ -76,6 +86,7 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
   const customFontId = timer.font === 'custom' && isCustomFontId(timer.customFontId) ? timer.customFontId : undefined;
   const font: TimerFont = customFontId ? 'custom' : TIMER_FONTS.find((option) => option.value === timer.font)?.value ?? 'default';
   const variant = TIMER_VARIANTS.find((option) => option.value === timer.variant && option.value !== 'digital')?.value as AppearanceSettings['timer']['variant'];
+  const language = TIMER_LANGUAGES.find((option) => option.value === timer.language && option.value !== 'en')?.value as AppearanceSettings['timer']['language'];
   const resolved = {} as AppearanceSettings['palettes'];
   for (const name of Object.keys(METRICS) as WidgetName[]) {
     const colors: unknown = palettes[name];
@@ -83,11 +94,15 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
       ? colors.map((color) => normalizeColor(color)!)
       : [...METRICS[name].colors];
   }
-  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}), ...(variant ? { variant } : {}) }, palettes: resolved };
+  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}), ...(variant ? { variant } : {}), ...(language ? { language } : {}) }, palettes: resolved };
 }
 
 export function timerVariant(timer: AppearanceSettings['timer']) {
   return TIMER_VARIANTS.find((option) => option.value === (timer.variant ?? 'digital'))!;
+}
+
+export function timerLanguage(timer: AppearanceSettings['timer']): TimerLanguage {
+  return timer.language ?? 'en';
 }
 
 export function parseAppearance(raw: string | null): AppearanceSettings {

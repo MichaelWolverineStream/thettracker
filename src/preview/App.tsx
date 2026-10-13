@@ -5,7 +5,7 @@ import { TimerProps } from './components/timer.tsx'
 import useTimer from './components/timer.tsx'
 import Box from './components/statbox.tsx'
 import { useShouldStart } from './timerContext.tsx'
-import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, timerVariant, type AppearanceSettings } from './appearance';
+import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, timerLanguage, timerVariant, type AppearanceSettings } from './appearance';
 import { useFittedTimer, useTimerFont } from './useTimerFont';
 import TimerFace from './components/TimerFace';
 import { timerText } from './timerFormat';
@@ -28,6 +28,7 @@ export interface userSettingsProps {
 function App(props: userSettingsProps) {
   const appearance = useRef(resolveAppearance(props.appearance)).current;
   const variant = timerVariant(appearance.timer);
+  const language = timerLanguage(appearance.timer);
   const font = useTimerFont(appearance.timer);
   const family = variant.usesFont ? font.family : undefined;
   const customFamily = appearance.timer.font === 'custom' ? family : undefined;
@@ -64,7 +65,7 @@ function App(props: userSettingsProps) {
 
   const displayMs = timer.hasStarted ? timer.duration + 1000 : 0;
   const fitKey = variant.layout === 'line' ? customFamily ?? (variant.value === 'digital' ? undefined : variant.value) : undefined;
-  useFittedTimer(timerElement, fitKey, timerText(variant.value, displayMs), 36);
+  useFittedTimer(timerElement, fitKey, timerText(variant.value, displayMs, language), 36);
   const seconds = Math.floor(timer.duration / 1000);
   const hours = timer.duration / 3600000;
 
@@ -139,7 +140,7 @@ function App(props: userSettingsProps) {
                 ...(family ? { fontFamily: family } : {}),
                 ...(fitKey ? { width: '100%', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '40px' } : {}),
               }}>
-                <TimerFace variant={variant.value} ms={displayMs} />
+                <TimerFace variant={variant.value} ms={displayMs} language={language} />
               </h2>
           </div>
         </div>

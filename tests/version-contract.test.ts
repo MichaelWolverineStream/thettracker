@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveVersion } from '../src/versionRouting';
 import { DEFAULT_LAUNCH_SETTINGS, WIDGETS, buildPreviewUrl, determineBoxCount, parsePreviewSettings } from '../src/preview/config';
 import { DEFAULT_LEGACY_SETTINGS, buildLegacyUrl } from '../src/landing/legacyLaunch';
-import { METRICS, TIMER_FONTS, TIMER_VARIANTS, parseAppearance, resolveAppearance, timerVariant } from '../src/preview/appearance';
+import { METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, parseAppearance, resolveAppearance, timerLanguage, timerVariant } from '../src/preview/appearance';
 
 describe('version routing', () => {
   it.each(['', '?version=2', '?version=0.1.0-preview', '?tracker=false', '?tracker=TRUE', '?tracker=1', '?tracker=&tracker=true'])('shows landing for %s', (search) => {
@@ -84,6 +84,25 @@ describe('appearance URL contract', () => {
     expect(appearance.timer).toEqual({ color: '#123ABC', font: 'bungee' });
     expect(appearance.palettes.chestTurns).toEqual(['#000000', '#112233', '#FFFFFF']);
     expect(timerVariant(appearance.timer).value).toBe('digital');
+  });
+
+  it.each(TIMER_LANGUAGES)('round-trips the $label words language and omits the English default', ({ value }) => {
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'bungee', variant: 'words', language: value } });
+    const url = buildPreviewUrl({ ...DEFAULT_LAUNCH_SETTINGS, boxes: '4', appearance });
+    expect(parsePreviewSettings(new URL(url, 'https://example.com/nested/').search).appearance).toEqual(appearance);
+    expect(appearance.timer).toEqual({ color: '#123ABC', font: 'bungee', variant: 'words', ...(value === 'en' ? {} : { language: value }) });
+    expect(timerLanguage(appearance.timer)).toBe(value);
+  });
+
+  it('keeps the words language independent of the timer style', () => {
+    expect(resolveAppearance({ timer: { variant: 'roman', language: 'ko' } }).timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'roman', language: 'ko' });
+    expect(resolveAppearance({ timer: { language: 'la' } }).timer).toEqual({ color: '#3B82F6', font: 'default', language: 'la' });
+  });
+
+  it.each([undefined, null, '', 'en', 'EN', 'fr-FR', 'de', 'toString', 1, {}, ['fr']])('falls back to English for invalid language case %# independently', (language) => {
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'bungee', variant: 'words', language } });
+    expect(appearance.timer).toEqual({ color: '#123ABC', font: 'bungee', variant: 'words' });
+    expect(timerLanguage(appearance.timer)).toBe('en');
   });
 
   it('discards custom metadata when a built-in font is selected', () => {

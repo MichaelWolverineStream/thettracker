@@ -188,4 +188,20 @@ describe('preview tracker timer variants', () => {
     cleanup();
     expect(renderVariant('digital').timer.textContent).toBe('01:00:01');
   });
+
+  it('renders the words language with a lang attribute', () => {
+    const renderWords = () => {
+      const appearance = resolveAppearance({ timer: { color: '#123456', font: 'bungee', variant: 'words', language: 'ko' } });
+      return render(<PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" appearance={appearance} />).container.querySelector('h2 .timer-face-words')!;
+    };
+    const words = renderWords();
+    expect(words.getAttribute('lang')).toBe('ko');
+    expect(words.textContent).toBe('한 시간 사 분 삼 초');
+    cleanup();
+    fixture.hasStarted = false;
+    fixture.timer.duration = 0;
+    expect(renderWords().textContent).toBe('아직 시간이 있어요');
+    cleanup();
+    expect(renderVariant('words').timer.querySelector('.timer-face-words')!.getAttribute('lang')).toBe('en');
+  });
 });

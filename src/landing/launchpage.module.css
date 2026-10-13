@@ -116,7 +116,7 @@
 
 .launch:hover { background: #383838; }
 .launch:active { background: #7f1d1d; }
-.launch:focus-visible, .widget input:focus-visible, .iconButton:focus-visible, .colorStop input:focus-visible, .fontField select:focus-visible, .styleField select:focus-visible {
+.launch:focus-visible, .widget input:focus-visible, .iconButton:focus-visible, .colorStop input:focus-visible, .fontField select:focus-visible, .styleField select:focus-visible, .languageField select:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 4px;
 }
@@ -135,8 +135,8 @@
 .colorStop { display: grid; justify-items: start; gap: 6px; min-width: 0; font-size: 13px; }
 .colorStop input { display: block; width: 44px; height: 32px; padding: 2px; border: 1px solid #717171; border-radius: 4px; background: #171717; cursor: pointer; }
 .colorStop code { font-size: 12px; color: var(--muted); }
-.fontField, .styleField { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
-.fontField select, .styleField select { width: 100%; min-width: 0; height: 36px; padding: 4px 8px; border: 1px solid #717171; border-radius: 4px; background: #171717; color: var(--text); font: inherit; }
+.fontField, .styleField, .languageField { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
+.fontField select, .styleField select, .languageField select { width: 100%; min-width: 0; height: 36px; padding: 4px 8px; border: 1px solid #717171; border-radius: 4px; background: #171717; color: var(--text); font: inherit; }
 .fontField select:disabled { opacity: 0.5; cursor: not-allowed; }
 .fontControls { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 4px; }
 .fontName { overflow-wrap: anywhere; color: var(--muted); font-size: 12px; }

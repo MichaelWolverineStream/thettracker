@@ -3,7 +3,7 @@ import { expect, test, type Locator, type WebSocketRoute } from '@playwright/tes
 import { memoryFrame } from './helpers/sni';
 import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetSettings } from '../src/preview/config';
 import { buildLegacyUrl } from '../src/landing/legacyLaunch';
-import { METRICS, TIMER_FONTS, TIMER_VARIANTS, hexToRgb, resolveAppearance } from '../src/preview/appearance';
+import { METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, hexToRgb, resolveAppearance } from '../src/preview/appearance';
 import { timerText } from '../src/preview/timerFormat';
 import { PREVIEW_DEFAULTS_KEY, factoryPreviewDefaults } from '../src/landing/previewDefaults';
 import { CUSTOM_FONTS_DATABASE, MAX_FONT_BYTES, customFontFamily } from '../src/preview/customFonts';
@@ -15,6 +15,16 @@ function idleDevice(socket: WebSocketRoute) {
     const request = JSON.parse(String(message));
     if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
     if (request.Opcode === 'GetAddress') socket.send(Buffer.from([0]));
+  });
+}
+
+function runningDevice(socket: WebSocketRoute) {
+  socket.onMessage((message) => {
+    const request = JSON.parse(String(message));
+    if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
+    if (request.Opcode === 'GetAddress') {
+      socket.send(request.Operands[0] === 'f50010' ? Buffer.from([7]) : Buffer.from(memoryFrame({ checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 })));
+    }
   });
 }
 
@@ -533,15 +543,7 @@ test('renders every timer style inside each viewport', async ({ page }) => {
   const elapsed = (3600 + 4 * 60 + 2) * 1000;
   await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
-  await page.routeWebSocket('ws://localhost:23074', (socket) => {
-    socket.onMessage((message) => {
-      const request = JSON.parse(String(message));
-      if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
-      if (request.Opcode === 'GetAddress') {
-        socket.send(request.Operands[0] === 'f50010' ? Buffer.from([7]) : Buffer.from(memoryFrame({ checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 })));
-      }
-    });
-  });
+  await page.routeWebSocket('ws://localhost:23074', runningDevice);
   const { width } = page.viewportSize()!;
   for (const { value, layout, usesFont } of TIMER_VARIANTS) {
     const appearance = resolveAppearance({ timer: { color: '#C43D52', font: 'bungee', variant: value } });
@@ -598,6 +600,62 @@ test('previews timer styles in the launcher and respects reduced motion', async 
   await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
   expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'bungee', variant: 'flip' });
   await expect(popup.locator('h2 .timer-face-flip')).toHaveText('00:00:00');
+});
+
+test('writes the words timer in every language inside each viewport', async ({ page }) => {
+  const elapsed = (3600 + 4 * 60 + 2) * 1000;
+  await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
+  await page.routeWebSocket('ws://localhost:23074', runningDevice);
+  const { width } = page.viewportSize()!;
+  for (const { value } of TIMER_LANGUAGES) {
+    const appearance = resolveAppearance({ timer: { color: '#C43D52', font: 'bungee', variant: 'words', language: value } });
+    await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
+    await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
+    const timer = page.locator('h2');
+    await expect(timer.locator('.timer-face-words')).toHaveAttribute('lang', value);
+    await expect(timer).toHaveText(timerText('words', 0, value));
+    await page.clock.runFor(125);
+    await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
+    await page.clock.setSystemTime(await page.evaluate(() => Date.now()) + elapsed);
+    await page.clock.runFor(125);
+    await expect(timer).toHaveText(timerText('words', elapsed + 1000, value));
+    await page.evaluate(() => document.fonts.ready);
+    const box = (await timer.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(await timer.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/timer-words-${value}-${width}.png`, fullPage: true });
+  }
+});
+
+test('picks a words language in the launcher and launches it', async ({ page, context }) => {
+  await context.routeWebSocket('ws://localhost:23074', idleDevice);
+  await page.goto('./index.html');
+  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const sample = preview.getByLabel('Timer preview', { exact: true });
+  await preview.getByLabel('Timer font', { exact: true }).selectOption('bungee');
+  await expect(preview.getByLabel('Words language', { exact: true })).toHaveCount(0);
+  await preview.getByLabel('Timer style', { exact: true }).selectOption('words');
+  const language = preview.getByLabel('Words language', { exact: true });
+  await expect(language.locator('option')).toHaveCount(TIMER_LANGUAGES.length);
+  for (const { value } of TIMER_LANGUAGES) {
+    await language.selectOption(value);
+    await expect(sample).toHaveText(timerText('words', 3843000, value));
+    await expect(sample.locator('.timer-face-words')).toHaveAttribute('lang', value);
+    await page.evaluate(() => document.fonts.ready);
+    expect(await sample.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/timer-words-sample-${value}-${page.viewportSize()!.width}.png`, fullPage: true });
+  }
+  await language.selectOption('ko');
+  const opened = page.waitForEvent('popup');
+  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
+  const popup = await opened;
+  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
+  expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'bungee', variant: 'words', language: 'ko' });
+  await expect(popup.locator('h2 .timer-face-words')).toHaveText('아직 시간이 있어요');
 });
 
 test('keeps the launcher usable when storage access is blocked', async ({ page, context }) => {

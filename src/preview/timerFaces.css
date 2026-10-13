@@ -19,6 +19,10 @@
   vertical-align: middle;
 }
 
+.timer-face-words:lang(ko) {
+  word-break: keep-all;
+}
+
 .timer-face-flip {
   display: inline-flex;
   align-items: center;

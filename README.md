@@ -75,6 +75,26 @@ Roman numerals always show hours, minutes and seconds, using an em dash for a
 zero unit (`—:IV:III`). Flip cards animate only when a digit changes and do not
 animate when the system requests reduced motion.
 
+When Words is selected, a **Words language** menu chooses how it is written.
+The language is kept when switching to another style and back.
+
+| Language | Token | Example (1:04:03) | Before the run starts |
+| --- | --- | --- | --- |
+| English | `en` | One hour, four minutes, and three seconds | There is still time |
+| Français | `fr` | Une heure, quatre minutes et trois secondes | Il est encore temps |
+| Svenska | `sv` | En timme, fyra minuter och tre sekunder | Det finns fortfarande tid |
+| Español | `es` | Una hora, cuatro minutos y tres segundos | Todavía hay tiempo |
+| 한국어 | `ko` | 한 시간 사 분 삼 초 | 아직 시간이 있어요 |
+| Latina | `la` | Una hora, quattuor minuta et tria secunda | Adhuc tempus est |
+
+Numbers agree with each noun's gender (for example Spanish *veintiún minutos*,
+Latin *duae horae*). French, Swedish, Spanish and Latin join the last two units
+with their own "and" and use no Oxford comma. Korean counts hours with native
+numbers below 100 (*스무 시간*) and uses Sino-Korean numbers otherwise
+(*오십구 분*), separating units by spaces only. Languages other than
+English write 1000 or more hours as digits (*1000 heures*). Bundled fonts have no
+Hangul glyphs, so Korean text uses the system fallback font.
+
 Each metric's palette button expands its three or five editable color stops.
 Thresholds and rate units remain fixed. Checks shows both the normal scale and
 the scale for more than 400 maximum checks. The ramp strip previews the palette;
@@ -125,6 +145,9 @@ the uploaded asset is stored; no font bytes or filenames travel in the URL.
 The optional `timer.variant` takes one of the style tokens above. It is omitted
 for Digital, so existing and factory links are unchanged; missing or invalid
 values fall back independently to Digital.
+The optional `timer.language` takes one of the language tokens above and is
+omitted for English; missing or invalid values fall back independently to
+English.
 Palette keys use the existing widget query IDs. New launcher URLs include every
 palette, including disabled/default ones, and remain under 2 KB. Partial values
 are accepted for shared links: omitted fields resolve to factory appearance,
