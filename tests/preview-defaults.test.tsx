@@ -101,6 +101,77 @@ describe('preview editor draft and save lifecycle', () => {
     expect(open.mock.calls[1][0]).not.toContain('appearance');
   });
 
+  it('selects a timer style, keeps it through font edits and disables fonts for graphic styles', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<LaunchPage />);
+    const style = preview().getByLabelText('Timer style') as HTMLSelectElement;
+    const font = preview().getByLabelText('Timer font') as HTMLSelectElement;
+    const upload = preview().getByRole('button', { name: 'Upload timer font' }) as HTMLButtonElement;
+    const sample = () => preview().getByLabelText('Timer preview');
+    expect(style.value).toBe('digital');
+    expect(sample().textContent).toBe('00:00:00');
+    fireEvent.change(style, { target: { value: 'words' } });
+    expect(sample().textContent).toBe('One hour, four minutes, and three seconds');
+    fireEvent.change(font, { target: { value: 'bungee' } });
+    fireEvent.change(preview().getByLabelText('Timer color'), { target: { value: '#123456' } });
+    expect(style.value).toBe('words');
+    expect(sample().style.fontFamily).not.toBe('');
+    for (const variant of ['lcd', 'rings', 'binary']) {
+      fireEvent.change(style, { target: { value: variant } });
+      expect(font.disabled).toBe(true);
+      expect(upload.disabled).toBe(true);
+      expect(font.value).toBe('bungee');
+      expect(sample().style.fontFamily).toBe('');
+      expect(within(sample()).getByRole('img', { name: '01:04:03' })).toBeTruthy();
+    }
+    fireEvent.change(style, { target: { value: 'analog' } });
+    expect(font.disabled).toBe(false);
+    expect(upload.disabled).toBe(false);
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    const settings = parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search);
+    expect(settings.appearance.timer).toEqual({ color: '#123456', font: 'bungee', variant: 'analog' });
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('keeps the timer style when uploading a font', async () => {
+    const id = 'c'.repeat(32);
+    vi.spyOn(fontAssets, 'importCustomFont').mockResolvedValue({ id, name: 'mine.woff2', blob: new Blob(['font']) });
+    vi.spyOn(fontAssets, 'loadCustomFont').mockResolvedValue({ face: { family: fontAssets.customFontFamily(id) } as FontFace, name: 'mine.woff2' });
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { add: vi.fn(), delete: vi.fn() } });
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<LaunchPage />);
+    fireEvent.change(preview().getByLabelText('Timer style'), { target: { value: 'roman' } });
+    fireEvent.change(preview().getByLabelText('Custom font file'), { target: { files: [new File(['font'], 'mine.woff2')] } });
+    await waitFor(() => expect((preview().getByLabelText('Timer font') as HTMLSelectElement).value).toBe('custom'));
+    expect((preview().getByLabelText('Timer style') as HTMLSelectElement).value).toBe('roman');
+    expect(preview().getByLabelText('Timer preview').textContent).toBe('I:IV:III');
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer).toEqual({ color: '#3B82F6', font: 'custom', customFontId: id, variant: 'roman' });
+  });
+
+  it('saves and resets the timer style without false unsaved changes', () => {
+    render(<LaunchPage />);
+    const style = () => preview().getByLabelText('Timer style') as HTMLSelectElement;
+    const status = () => preview().getByRole('status').textContent;
+    fireEvent.change(style(), { target: { value: 'flip' } });
+    expect(status()).toBe('Unsaved');
+    fireEvent.change(style(), { target: { value: 'digital' } });
+    expect(status()).toBe('');
+    fireEvent.change(style(), { target: { value: 'flip' } });
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    expect(status()).toBe('Saved');
+    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'flip' });
+    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'bungee' } });
+    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'default' } });
+    expect(status()).toBe('');
+    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
+    expect(style().value).toBe('digital');
+    expect(loadPreviewDefaults().appearance.timer.variant).toBe('flip');
+    cleanup();
+    render(<LaunchPage />);
+    expect(style().value).toBe('flip');
+  });
+
   it('loads only at mount, saves explicitly, and resets only the current draft until saved', () => {
     const initial = factoryPreviewDefaults();
     initial.widgets.magic = false;

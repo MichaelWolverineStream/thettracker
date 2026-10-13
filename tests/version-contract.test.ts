@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveVersion } from '../src/versionRouting';
 import { DEFAULT_LAUNCH_SETTINGS, WIDGETS, buildPreviewUrl, determineBoxCount, parsePreviewSettings } from '../src/preview/config';
 import { DEFAULT_LEGACY_SETTINGS, buildLegacyUrl } from '../src/landing/legacyLaunch';
-import { METRICS, TIMER_FONTS, parseAppearance, resolveAppearance } from '../src/preview/appearance';
+import { METRICS, TIMER_FONTS, TIMER_VARIANTS, parseAppearance, resolveAppearance, timerVariant } from '../src/preview/appearance';
 
 describe('version routing', () => {
   it.each(['', '?version=2', '?version=0.1.0-preview', '?tracker=false', '?tracker=TRUE', '?tracker=1', '?tracker=&tracker=true'])('shows landing for %s', (search) => {
@@ -63,6 +63,27 @@ describe('appearance URL contract', () => {
     const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'custom', customFontId }, palettes: { chestTurns: ['#000000', '#112233', '#FFFFFF'] } });
     expect(appearance.timer).toEqual({ color: '#123ABC', font: 'default' });
     expect(appearance.palettes.chestTurns).toEqual(['#000000', '#112233', '#FFFFFF']);
+  });
+
+  it.each(TIMER_VARIANTS)('round-trips the $label timer style and omits the digital default', ({ value }) => {
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'custom', customFontId: 'b'.repeat(32), variant: value } });
+    const url = buildPreviewUrl({ ...DEFAULT_LAUNCH_SETTINGS, boxes: '4', appearance });
+    expect(url.length).toBeLessThan(2048);
+    expect(parsePreviewSettings(new URL(url, 'https://example.com/nested/').search).appearance).toEqual(appearance);
+    expect(appearance.timer).toEqual({ color: '#123ABC', font: 'custom', customFontId: 'b'.repeat(32), ...(value === 'digital' ? {} : { variant: value }) });
+    expect(timerVariant(appearance.timer).value).toBe(value);
+  });
+
+  it('keeps factory and pre-variant URLs unchanged', () => {
+    expect(JSON.stringify(resolveAppearance({ timer: { variant: 'digital' } }))).toBe(JSON.stringify(resolveAppearance(undefined)));
+    expect(parseAppearance(JSON.stringify({ v: 1, timer: { color: '#112233', font: 'bungee' } })).timer).toEqual({ color: '#112233', font: 'bungee' });
+  });
+
+  it.each([undefined, null, '', 'Analog', 'ANALOG', 'clock', 'toString', 1, {}, ['analog']])('falls back to digital for invalid timer style case %# independently', (variant) => {
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'bungee', variant }, palettes: { chestTurns: ['#000000', '#112233', '#FFFFFF'] } });
+    expect(appearance.timer).toEqual({ color: '#123ABC', font: 'bungee' });
+    expect(appearance.palettes.chestTurns).toEqual(['#000000', '#112233', '#FFFFFF']);
+    expect(timerVariant(appearance.timer).value).toBe('digital');
   });
 
   it('discards custom metadata when a built-in font is selected', () => {

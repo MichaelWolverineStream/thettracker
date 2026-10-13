@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { ArrowUpRight, ChevronDown, Palette, RotateCcw, Save, Upload } from 'lucide-react';
 import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetName } from '../preview/config';
-import { LARGE_CHECK_BUCKETS, METRICS, TIMER_FONTS, normalizeColor, type TimerFont } from '../preview/appearance';
+import { LARGE_CHECK_BUCKETS, METRICS, TIMER_FONTS, TIMER_VARIANTS, normalizeColor, resolveAppearance, timerVariant, type TimerFont, type TimerVariant } from '../preview/appearance';
+import TimerFace from '../preview/components/TimerFace';
 import { fontErrorMessage, importCustomFont } from '../preview/customFonts';
+import { timerText } from '../preview/timerFormat';
 import { useFittedTimer, useTimerFont } from '../preview/useTimerFont';
 import { factoryPreviewDefaults, loadPreviewDefaults, savePreviewDefaults, type PreviewDefaults } from './previewDefaults';
 import { WINDOW_FEATURES } from './legacyLaunch';
 import styles from './launchpage.module.css';
+
+const SAMPLE_MS = (3600 + 4 * 60 + 3) * 1000;
 
 function ColorStop({ label, color, change, threshold }: { label: string; color: string; change: Dispatch<string>; threshold?: string }) {
   return (
@@ -29,9 +33,13 @@ export default function PreviewSettings() {
   const uploadSequence = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const sample = useRef<HTMLDivElement>(null);
+  const variant = timerVariant(draft.appearance.timer);
   const font = useTimerFont(draft.appearance.timer);
-  const customFamily = draft.appearance.timer.font === 'custom' ? font.family : undefined;
-  useFittedTimer(sample, customFamily, '00:00:00', 30);
+  const family = variant.usesFont ? font.family : undefined;
+  const customFamily = draft.appearance.timer.font === 'custom' ? family : undefined;
+  const sampleMs = variant.value === 'digital' ? 0 : SAMPLE_MS;
+  const sampleFit = variant.layout === 'line' ? customFamily ?? (variant.value === 'digital' ? undefined : variant.value) : undefined;
+  useFittedTimer(sample, sampleFit, timerText(variant.value, sampleMs), 30);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   useEffect(() => () => { uploadSequence.current += 1; }, []);
@@ -64,11 +72,15 @@ export default function PreviewSettings() {
     edit((previous) => ({ ...previous, appearance: { ...previous.appearance, palettes: { ...previous.appearance.palettes, [name]: colors } } }));
   }
 
+  function changeTimer(update: { font?: TimerFont; customFontId?: string; variant?: TimerVariant }) {
+    edit((previous) => ({ ...previous, appearance: { ...previous.appearance, timer: resolveAppearance({ timer: { ...previous.appearance.timer, ...update } }).timer } }));
+  }
+
   function changeFont(value: TimerFont) {
     uploadSequence.current += 1;
     setImporting(false);
     setUploadError(undefined);
-    edit((previous) => ({ ...previous, appearance: { ...previous.appearance, timer: { color: previous.appearance.timer.color, font: value, ...(value === 'custom' && customFont ? { customFontId: customFont.id } : {}) } } }));
+    changeTimer({ font: value, customFontId: value === 'custom' ? customFont?.id : undefined });
   }
 
   function reset() {
@@ -87,7 +99,7 @@ export default function PreviewSettings() {
       const asset = await importCustomFont(file);
       if (sequence !== uploadSequence.current) return;
       setCustomFont({ id: asset.id, name: asset.name });
-      edit((previous) => ({ ...previous, appearance: { ...previous.appearance, timer: { color: previous.appearance.timer.color, font: 'custom', customFontId: asset.id } } }));
+      changeTimer({ font: 'custom', customFontId: asset.id });
     } catch (error) {
       if (sequence === uploadSequence.current) setUploadError(fontErrorMessage(error));
     } finally {
@@ -106,23 +118,31 @@ export default function PreviewSettings() {
           <legend>Timer</legend>
           <div className={styles.timerControls}>
             <ColorStop label="Timer color" color={draft.appearance.timer.color} change={(color) => edit((previous) => ({ ...previous, appearance: { ...previous.appearance, timer: { ...previous.appearance.timer, color } } }))} />
-            <div className={styles.fontField}>
-              <label htmlFor="preview-timer-font">Timer font</label>
-              <div className={styles.fontControls}>
-                <select id="preview-timer-font" value={draft.appearance.timer.font} onChange={(event) => changeFont(event.target.value as TimerFont)}>
-                  {TIMER_FONTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-                  {customFont && <option value="custom">Custom: {customFont.name}</option>}
+            <div className={styles.timerFields}>
+              <div className={styles.styleField}>
+                <label htmlFor="preview-timer-variant">Timer style</label>
+                <select id="preview-timer-variant" value={variant.value} onChange={(event) => changeTimer({ variant: event.target.value as TimerVariant })}>
+                  {TIMER_VARIANTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                 </select>
-                <button type="button" className={styles.iconButton} aria-label="Upload timer font" title="Upload timer font" disabled={importing} onClick={() => fileInput.current?.click()}><Upload size={18} aria-hidden="true" /></button>
-                <input ref={fileInput} aria-label="Custom font file" type="file" accept=".woff2,.woff,.ttf,.otf" hidden onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  event.target.value = '';
-                  if (file) void upload(file);
-                }} />
               </div>
-              {customFont && <span className={styles.fontName} title={customFont.name}>{customFont.name}</span>}
+              <div className={styles.fontField}>
+                <label htmlFor="preview-timer-font">Timer font</label>
+                <div className={styles.fontControls}>
+                  <select id="preview-timer-font" value={draft.appearance.timer.font} disabled={!variant.usesFont} onChange={(event) => changeFont(event.target.value as TimerFont)}>
+                    {TIMER_FONTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                    {customFont && <option value="custom">Custom: {customFont.name}</option>}
+                  </select>
+                  <button type="button" className={styles.iconButton} aria-label="Upload timer font" title="Upload timer font" disabled={importing || !variant.usesFont} onClick={() => fileInput.current?.click()}><Upload size={18} aria-hidden="true" /></button>
+                  <input ref={fileInput} aria-label="Custom font file" type="file" accept=".woff2,.woff,.ttf,.otf" hidden onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) void upload(file);
+                  }} />
+                </div>
+                {customFont && <span className={styles.fontName} title={customFont.name}>{customFont.name}</span>}
+              </div>
             </div>
-            <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: font.family, ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}>00:00:00</div>
+            <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: family, ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}><TimerFace variant={variant.value} ms={sampleMs} scale={0.5} /></div>
             <span aria-label="Font status" aria-live="polite" className={`${styles.fontStatus} ${uploadError || font.error ? styles.error : styles.status}`}>{importing ? 'Importing font' : uploadError ?? (font.loading ? 'Loading font' : font.error ?? '')}</span>
           </div>
         </fieldset>

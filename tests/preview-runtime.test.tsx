@@ -261,6 +261,37 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     expect(view.container.querySelector('h2')!.textContent).toBe('00:00:02');
   });
 
+  it('ticks the analog second hand and words once per displayed second', () => {
+    const appearance = (variant: string) => resolveAppearance({ timer: { variant } });
+    const view = render(<ShouldStartProvider>
+      <PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" appearance={appearance('analog')} />
+    </ShouldStartProvider>);
+    const socket = FakeSniSocket.instances[0];
+    attach(socket);
+    const hand = () => view.container.querySelector('[data-hand="second"]')!.getAttribute('transform');
+    expect(hand()).toBe('rotate(0 50 50)');
+    mode(socket, 0x1B);
+    expect(hand()).toBe('rotate(6 50 50)');
+    advance(875);
+    expect(hand()).toBe('rotate(6 50 50)');
+    advance(125);
+    expect(hand()).toBe('rotate(12 50 50)');
+    view.unmount();
+
+    const words = render(<ShouldStartProvider>
+      <PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" appearance={appearance('words')} />
+    </ShouldStartProvider>);
+    const wordsSocket = FakeSniSocket.instances.at(-1)!;
+    attach(wordsSocket);
+    expect(words.container.querySelector('h2')!.textContent).toBe('There is still time');
+    mode(wordsSocket, 0x1B);
+    expect(words.container.querySelector('h2')!.textContent).toBe('One second');
+    advance(875);
+    expect(words.container.querySelector('h2')!.textContent).toBe('One second');
+    advance(125);
+    expect(words.container.querySelector('h2')!.textContent).toBe('Two seconds');
+  });
+
   it('keeps retrying absent SNI indefinitely without faster attempts and connects when it appears', () => {
     const view = renderSni();
     for (let attempt = 0; attempt < 30; attempt += 1) {

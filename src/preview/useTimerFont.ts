@@ -36,10 +36,10 @@ export function useTimerFont(timer: AppearanceSettings['timer']) {
     : { family: undefined, loading: true, name: undefined, error: undefined };
 }
 
-export function useFittedTimer(ref: RefObject<HTMLElement>, family: string | undefined, text: string, baseSize: number) {
+export function useFittedTimer(ref: RefObject<HTMLElement>, fitKey: string | undefined, text: string, baseSize: number) {
   useEffect(() => {
     const element = ref.current;
-    if (!element || !family) return;
+    if (!element || !fitKey) return;
     const range = document.createRange();
     if (typeof range.getBoundingClientRect !== 'function') return;
     const fit = () => {
@@ -58,5 +58,5 @@ export function useFittedTimer(ref: RefObject<HTMLElement>, family: string | und
       window.removeEventListener('resize', fit);
       element.style.fontSize = '';
     };
-  }, [ref, family, text, baseSize]);
+  }, [ref, fitKey, text, baseSize]);
 }

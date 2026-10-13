@@ -10,9 +10,22 @@ export const TIMER_FONTS = [
   { value: 'monoton', label: 'Monoton', family: '"Tracker Monoton", monospace' },
 ] as const;
 
+export const TIMER_VARIANTS = [
+  { value: 'digital', label: 'Digital', usesFont: true, layout: 'line' },
+  { value: 'analog', label: 'Analog stopclock', usesFont: true, layout: 'graphic' },
+  { value: 'words', label: 'Words', usesFont: true, layout: 'wrap' },
+  { value: 'lcd', label: 'Seven-segment LCD', usesFont: false, layout: 'graphic' },
+  { value: 'rings', label: 'Progress rings', usesFont: false, layout: 'graphic' },
+  { value: 'binary', label: 'Binary clock', usesFont: false, layout: 'graphic' },
+  { value: 'compact', label: 'Compact', usesFont: true, layout: 'line' },
+  { value: 'flip', label: 'Flip clock', usesFont: true, layout: 'line' },
+  { value: 'roman', label: 'Roman numerals', usesFont: true, layout: 'line' },
+] as const;
+
 export type TimerFont = typeof TIMER_FONTS[number]['value'] | 'custom';
+export type TimerVariant = typeof TIMER_VARIANTS[number]['value'];
 export interface AppearanceSettings {
-  timer: { color: string; font: TimerFont; customFontId?: string };
+  timer: { color: string; font: TimerFont; customFontId?: string; variant?: Exclude<TimerVariant, 'digital'> };
   palettes: Record<WidgetName, readonly string[]>;
 }
 
@@ -62,6 +75,7 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
   const palettes = isRecord(input.palettes) ? input.palettes : {};
   const customFontId = timer.font === 'custom' && isCustomFontId(timer.customFontId) ? timer.customFontId : undefined;
   const font: TimerFont = customFontId ? 'custom' : TIMER_FONTS.find((option) => option.value === timer.font)?.value ?? 'default';
+  const variant = TIMER_VARIANTS.find((option) => option.value === timer.variant && option.value !== 'digital')?.value as AppearanceSettings['timer']['variant'];
   const resolved = {} as AppearanceSettings['palettes'];
   for (const name of Object.keys(METRICS) as WidgetName[]) {
     const colors: unknown = palettes[name];
@@ -69,7 +83,11 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
       ? colors.map((color) => normalizeColor(color)!)
       : [...METRICS[name].colors];
   }
-  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}) }, palettes: resolved };
+  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}), ...(variant ? { variant } : {}) }, palettes: resolved };
+}
+
+export function timerVariant(timer: AppearanceSettings['timer']) {
+  return TIMER_VARIANTS.find((option) => option.value === (timer.variant ?? 'digital'))!;
 }
 
 export function parseAppearance(raw: string | null): AppearanceSettings {

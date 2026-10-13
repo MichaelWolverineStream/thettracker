@@ -3,7 +3,8 @@ import { expect, test, type Locator, type WebSocketRoute } from '@playwright/tes
 import { memoryFrame } from './helpers/sni';
 import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetSettings } from '../src/preview/config';
 import { buildLegacyUrl } from '../src/landing/legacyLaunch';
-import { METRICS, TIMER_FONTS, hexToRgb, resolveAppearance } from '../src/preview/appearance';
+import { METRICS, TIMER_FONTS, TIMER_VARIANTS, hexToRgb, resolveAppearance } from '../src/preview/appearance';
+import { timerText } from '../src/preview/timerFormat';
 import { PREVIEW_DEFAULTS_KEY, factoryPreviewDefaults } from '../src/landing/previewDefaults';
 import { CUSTOM_FONTS_DATABASE, MAX_FONT_BYTES, customFontFamily } from '../src/preview/customFonts';
 
@@ -526,6 +527,77 @@ test('loads all timer fonts locally and keeps the timer inside each viewport', a
   }
   expect(new Set(responses.map(({ url }) => url)).size).toBe(fonts.length);
   expect(responses.every(({ url, ok }) => ok && new URL(url).origin === new URL(page.url()).origin)).toBe(true);
+});
+
+test('renders every timer style inside each viewport', async ({ page }) => {
+  const elapsed = (3600 + 4 * 60 + 2) * 1000;
+  await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
+  await page.routeWebSocket('ws://localhost:23074', (socket) => {
+    socket.onMessage((message) => {
+      const request = JSON.parse(String(message));
+      if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
+      if (request.Opcode === 'GetAddress') {
+        socket.send(request.Operands[0] === 'f50010' ? Buffer.from([7]) : Buffer.from(memoryFrame({ checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 })));
+      }
+    });
+  });
+  const { width } = page.viewportSize()!;
+  for (const { value, layout, usesFont } of TIMER_VARIANTS) {
+    const appearance = resolveAppearance({ timer: { color: '#C43D52', font: 'bungee', variant: value } });
+    await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
+    await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
+    const timer = page.locator('h2');
+    if (layout === 'graphic') await expect(timer.getByRole('img', { name: '00:00:00' })).toBeVisible();
+    else await expect(timer).toHaveText(timerText(value, 0));
+    await page.clock.runFor(125);
+    await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
+    await page.clock.setSystemTime(await page.evaluate(() => Date.now()) + elapsed);
+    await page.clock.runFor(125);
+    if (layout === 'graphic') await expect(timer.getByRole('img', { name: '01:04:03' })).toBeVisible();
+    else await expect(timer).toHaveText(timerText(value, elapsed + 1000));
+    await expect(timer).toHaveCSS('color', 'rgb(196, 61, 82)');
+    if (usesFont) await expect(timer).toHaveCSS('font-family', TIMER_FONTS.find(({ value }) => value === 'bungee')!.family!);
+    await page.evaluate(() => document.fonts.ready);
+    const box = (await timer.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(await timer.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/timer-variant-${value}-${width}.png`, fullPage: true, animations: 'disabled' });
+  }
+});
+
+test('previews timer styles in the launcher and respects reduced motion', async ({ page, context }) => {
+  await context.routeWebSocket('ws://localhost:23074', idleDevice);
+  await page.goto('./index.html');
+  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const style = preview.getByLabel('Timer style', { exact: true });
+  const font = preview.getByLabel('Timer font', { exact: true });
+  const sample = preview.getByLabel('Timer preview', { exact: true });
+  await expect(style.locator('option')).toHaveCount(TIMER_VARIANTS.length);
+  await font.selectOption('bungee');
+  for (const { value, layout, usesFont } of TIMER_VARIANTS) {
+    await style.selectOption(value);
+    if (layout === 'graphic') await expect(sample.getByRole('img', { name: '01:04:03' })).toBeVisible();
+    else await expect(sample).toHaveText(timerText(value, value === 'digital' ? 0 : 3843000));
+    await expect(font).toBeEnabled({ enabled: usesFont });
+    await expect(preview.getByRole('button', { name: 'Upload timer font' })).toBeEnabled({ enabled: usesFont });
+    await page.evaluate(() => document.fonts.ready);
+    expect(await sample.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/timer-variant-sample-${value}-${page.viewportSize()!.width}.png`, fullPage: true, animations: 'disabled' });
+  }
+  await style.selectOption('flip');
+  await expect(sample.locator('.timer-flip-digit').first()).toHaveCSS('animation-name', 'timer-flip');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(sample.locator('.timer-flip-digit').first()).toHaveCSS('animation-name', 'none');
+  const opened = page.waitForEvent('popup');
+  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
+  const popup = await opened;
+  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
+  expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'bungee', variant: 'flip' });
+  await expect(popup.locator('h2 .timer-face-flip')).toHaveText('00:00:00');
 });
 
 test('keeps the launcher usable when storage access is blocked', async ({ page, context }) => {

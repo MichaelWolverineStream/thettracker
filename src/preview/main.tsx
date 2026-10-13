@@ -1,6 +1,7 @@
 import './css/index.css';
 import './css/launchpage.css';
 import './fonts.css';
+import './timerFaces.css';
 import ReactDOM from 'react-dom/client';
 import Tracker from './tracker';
 

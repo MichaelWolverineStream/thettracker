@@ -5,8 +5,10 @@ import { TimerProps } from './components/timer.tsx'
 import useTimer from './components/timer.tsx'
 import Box from './components/statbox.tsx'
 import { useShouldStart } from './timerContext.tsx'
-import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, type AppearanceSettings } from './appearance';
+import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, timerVariant, type AppearanceSettings } from './appearance';
 import { useFittedTimer, useTimerFont } from './useTimerFont';
+import TimerFace from './components/TimerFace';
+import { timerText } from './timerFormat';
 
 
 
@@ -25,8 +27,10 @@ export interface userSettingsProps {
 
 function App(props: userSettingsProps) {
   const appearance = useRef(resolveAppearance(props.appearance)).current;
+  const variant = timerVariant(appearance.timer);
   const font = useTimerFont(appearance.timer);
-  const customFamily = appearance.timer.font === 'custom' ? font.family : undefined;
+  const family = variant.usesFont ? font.family : undefined;
+  const customFamily = appearance.timer.font === 'custom' ? family : undefined;
   const timerElement = useRef<HTMLHeadingElement>(null);
   const SPEED_MAP = useRef(createSpeedMap(appearance));
   const [userSettings] = useState<userSettingsProps>(props);
@@ -58,10 +62,9 @@ function App(props: userSettingsProps) {
     SPEED_MAP.current['cph'].buckets = [...LARGE_CHECK_BUCKETS];
   }
 
-  const displayDuration = timer.hasStarted
-    ? new Date(timer.duration + 1000).toISOString().substr(11, 8)
-    : '00:00:00';
-  useFittedTimer(timerElement, customFamily, displayDuration, 36);
+  const displayMs = timer.hasStarted ? timer.duration + 1000 : 0;
+  const fitKey = variant.layout === 'line' ? customFamily ?? (variant.value === 'digital' ? undefined : variant.value) : undefined;
+  useFittedTimer(timerElement, fitKey, timerText(variant.value, displayMs), 36);
   const seconds = Math.floor(timer.duration / 1000);
   const hours = timer.duration / 3600000;
 
@@ -129,14 +132,14 @@ function App(props: userSettingsProps) {
           )}
         </span>
         <div className="flex justify-center items-center space-x-4 mb-8">
-          <div className="p-4" style={customFamily ? { width: '100%', minWidth: 0, maxWidth: '100%' } : undefined}>
+          <div className="p-4" style={fitKey ? { width: '100%', minWidth: 0, maxWidth: '100%' } : undefined}>
               <h2 ref={timerElement} className="text-4xl font-bold text-blue-500" style={{
                 textShadow: '2px 2px 3px rgba(0,0,0,0.5)',
                 ...(appearance.timer.color !== DEFAULT_TIMER_COLOR ? { color: appearance.timer.color } : {}),
-                ...(font.family ? { fontFamily: font.family } : {}),
-                ...(customFamily ? { width: '100%', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '40px' } : {}),
+                ...(family ? { fontFamily: family } : {}),
+                ...(fitKey ? { width: '100%', whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '40px' } : {}),
               }}>
-                {displayDuration}
+                <TimerFace variant={variant.value} ms={displayMs} />
               </h2>
           </div>
         </div>

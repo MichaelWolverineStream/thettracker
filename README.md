@@ -42,12 +42,38 @@ explicitly referenced by its URL; it never writes font assets.
 
 ### Preview Appearance and Defaults
 
-The preview section offers a timer color swatch, a font menu and a passive timer
-sample. Fonts are Current (the original inherited stack), IBM Plex Mono,
+The preview section offers a timer color swatch, a timer style menu, a font menu
+and a passive timer sample. Fonts are Current (the original inherited stack), IBM Plex Mono,
 JetBrains Mono, Space Mono, Bungee, Audiowide and Monoton, plus a local font upload.
-Only the timer font/color changes; metric text, buttons, weight and shadow retain
+Only the timer font/color/style changes; metric text, buttons, weight and shadow retain
 their existing presentation. Uploaded fonts shrink only when necessary to fit
 the timer or sample container; bundled fonts retain their existing sizes.
+
+#### Timer Styles
+
+| Style | Token | Uses Font | Example (1:04:03) |
+| --- | --- | --- | --- |
+| Digital | `digital` | Yes | `01:04:03` |
+| Analog stopclock | `analog` | Numerals only | Hour, minute and ticking second hands |
+| Words | `words` | Yes | One hour, four minutes, and three seconds |
+| Seven-segment LCD | `lcd` | No | Segment display of `01:04:03` |
+| Progress rings | `rings` | No | Second, minute and 12-hour rings |
+| Binary clock | `binary` | No | BCD columns for `01:04:03` |
+| Compact | `compact` | Yes | `1h 04m 03s` |
+| Flip clock | `flip` | Yes | Flip cards for `01:04:03` |
+| Roman numerals | `roman` | Yes | `I:IV:III` |
+
+The color applies to every style. The font menu and upload button are disabled
+for styles that draw no text, while the chosen font is kept for later. The
+sample shows `00:00:00` for Digital and a fixed 1:04:03 for other styles.
+Digit styles (Digital, LCD, Flip and Binary) keep the existing wrap after 24
+hours; Words, Compact, Roman, Analog and Rings count hours without wrapping, and
+the analog hour hand and hour ring turn once per 12 hours. Words omits zero
+units, joins two units with "and", uses an Oxford comma for three and wraps
+onto several lines; it reads "There is still time" before the run starts.
+Roman numerals always show hours, minutes and seconds, using an em dash for a
+zero unit (`—:IV:III`). Flip cards animate only when a digit changes and do not
+animate when the system requests reduced motion.
 
 Each metric's palette button expands its three or five editable color stops.
 Thresholds and rate units remain fixed. Checks shows both the normal scale and
@@ -84,7 +110,7 @@ For example, its decoded form can be:
 ```json
 {
   "v": 1,
-  "timer": { "color": "#3B82F6", "font": "ibm-plex-mono" },
+  "timer": { "color": "#3B82F6", "font": "ibm-plex-mono", "variant": "analog" },
   "palettes": {
     "checkCount": ["#3A86FF", "#8338EC", "#FF006E", "#FB5607", "#FFBE0B"]
   }
@@ -96,6 +122,9 @@ Font tokens are `default`, `ibm-plex-mono`, `jetbrains-mono`, `space-mono`,
 `timer.customFontId` containing 32 lowercase hex characters; invalid references
 fall back independently to the inherited font. IDs are meaningful only where
 the uploaded asset is stored; no font bytes or filenames travel in the URL.
+The optional `timer.variant` takes one of the style tokens above. It is omitted
+for Digital, so existing and factory links are unchanged; missing or invalid
+values fall back independently to Digital.
 Palette keys use the existing widget query IDs. New launcher URLs include every
 palette, including disabled/default ones, and remain under 2 KB. Partial values
 are accepted for shared links: omitted fields resolve to factory appearance,
@@ -275,7 +304,7 @@ The browser suite uses locally installed Google Chrome and runs on desktop,
 SNI implementation; browser tests intercept WebSockets rather than requiring
 hardware. They cover URL contracts, legacy screenshots, real launch popups,
 finite-time feature parity, timer accumulation, color safety, saved defaults,
-unsaved launches, storage failures, URL-only appearance, bundled fonts, delayed
+unsaved launches, storage failures, URL-only appearance, bundled fonts, timer styles, delayed
 SNI/device availability, serialized polling and terminal cleanup. Screenshots are captured
 on macOS; browser rendering differences on other platforms need separate baselines.
 
