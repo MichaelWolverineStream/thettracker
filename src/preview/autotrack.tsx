@@ -45,6 +45,7 @@ const GAME_MODE_MAP = {
 
 export interface AutotrackingProps {
     status: string;
+    connected?: boolean;
     host?: string;
     port?: number;
     maxChecks: number;
@@ -93,7 +94,7 @@ function useAutoTrackWebSocket(props: AutotrackingProps) {
             if (!mounted || retryTimer !== undefined) return;
             clearTimers();
             disposeSocket();
-            setData(previous => ({ ...previous, status }));
+            setData(previous => ({ ...previous, status, connected: false }));
             retryTimer = setTimeout(() => {
                 retryTimer = undefined;
                 connect();
@@ -183,7 +184,7 @@ function useAutoTrackWebSocket(props: AutotrackingProps) {
                         return;
                     }
                     if (!send({ Opcode: 'Attach', Space: 'SNES', Operands: [results[0]] })) return;
-                    setData(previous => ({ ...previous, status: `Connected to ${results[0]}` }));
+                    setData(previous => ({ ...previous, status: `Connected to ${results[0]}`, connected: true }));
                     pollTimer = setTimeout(requestMode, AUTOTRACK_TIMEOUT);
                     return;
                 }
@@ -213,7 +214,7 @@ function useAutoTrackWebSocket(props: AutotrackingProps) {
 
         function connect() {
             if (!mounted || socket) return;
-            setData(previous => ({ ...previous, status: 'Connecting' }));
+            setData(previous => ({ ...previous, status: 'Connecting', connected: false }));
             try {
                 const owned = new WebSocket(`${props.host}:${props.port}`);
                 socket = owned;

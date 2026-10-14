@@ -5,9 +5,11 @@ import { TimerProps } from './components/timer.tsx'
 import useTimer from './components/timer.tsx'
 import Box from './components/statbox.tsx'
 import { useShouldStart } from './timerContext.tsx'
-import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, timerLanguage, timerVariant, type AppearanceSettings } from './appearance';
+import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, timerLanguage, timerStyles, variantOption, type AppearanceSettings } from './appearance';
 import { useFittedTimer, useTimerFont } from './useTimerFont';
+import { useTimerRotation } from './useTimerRotation';
 import TimerFace from './components/TimerFace';
+import BlatOverlay from './components/BlatOverlay';
 import { timerText } from './timerFormat';
 
 
@@ -27,7 +29,10 @@ export interface userSettingsProps {
 
 function App(props: userSettingsProps) {
   const appearance = useRef(resolveAppearance(props.appearance)).current;
-  const variant = timerVariant(appearance.timer);
+  const styles = useRef(timerStyles(appearance.timer)).current;
+  const { timerOn, setTimerOn } = useShouldStart();
+  const variant = variantOption(useTimerRotation(styles, timerOn));
+  const blat = appearance.timer.blat === true;
   const language = timerLanguage(appearance.timer);
   const font = useTimerFont(appearance.timer);
   const family = variant.usesFont ? font.family : undefined;
@@ -43,6 +48,7 @@ function App(props: userSettingsProps) {
   });
   const autotrackingProps = useRef<AutotrackingProps>({
     status: 'Disconnected',
+    connected: false,
     host: 'ws://localhost',
     port: 23074,
     maxChecks: 216,
@@ -55,7 +61,6 @@ function App(props: userSettingsProps) {
     damage: 0,
     magic: 0
   });
-  const { timerOn, setTimerOn } = useShouldStart();
   const [manualCheckCount, setManualCheckCount] = useState<number>(0);
   const data = useAutoTrackWebSocket(autotrackingProps.current);
   const timer = useTimer(timerProps.current);
@@ -133,7 +138,10 @@ function App(props: userSettingsProps) {
           )}
         </span>
         <div className="flex justify-center items-center space-x-4 mb-8">
-          <div className="p-4" style={fitKey ? { width: '100%', minWidth: 0, maxWidth: '100%' } : undefined}>
+          <div className="p-4" style={fitKey || blat ? {
+            ...(fitKey ? { width: '100%', minWidth: 0, maxWidth: '100%' } : {}),
+            ...(blat ? { position: 'relative' as const, overflow: 'clip' as const } : {}),
+          } : undefined}>
               <h2 ref={timerElement} className="text-4xl font-bold text-blue-500" style={{
                 textShadow: '2px 2px 3px rgba(0,0,0,0.5)',
                 ...(appearance.timer.color !== DEFAULT_TIMER_COLOR ? { color: appearance.timer.color } : {}),
@@ -142,8 +150,20 @@ function App(props: userSettingsProps) {
               }}>
                 <TimerFace variant={variant.value} ms={displayMs} language={language} />
               </h2>
+              {blat && timerOn && <BlatOverlay size={18} color={appearance.timer.color} />}
           </div>
         </div>
+
+        {!timer.hasStarted && !data.connected && (
+          <div className="flex justify-center items-center space-x-4 mb-4">
+            <button
+              className="bg-blue-500 hover:bg-blue-700 active:bg-blue-800 text-gray-100 strong-button-font py-2 px-3 beveled-box rounded-md flex items-center justify-center gap-2 transition-all duration-150 ease-in-out active:shadow-inner active:scale-95"
+              onClick={() => setTimerOn(true)}
+            >
+              FORCE TIMER START
+            </button>
+          </div>
+        )}
 
         {timer.hasStarted && (
           <div className="flex justify-center items-center space-x-4 mb-4">

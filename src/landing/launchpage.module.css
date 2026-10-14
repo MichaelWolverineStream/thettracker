@@ -116,7 +116,7 @@
 
 .launch:hover { background: #383838; }
 .launch:active { background: #7f1d1d; }
-.launch:focus-visible, .widget input:focus-visible, .iconButton:focus-visible, .colorStop input:focus-visible, .fontField select:focus-visible, .styleField select:focus-visible, .languageField select:focus-visible {
+.launch:focus-visible, .widget input:focus-visible, .iconButton:focus-visible, .colorStop input:focus-visible, .fontField select:focus-visible, .styleField select:focus-visible, .languageField select:focus-visible, .rotationOption input:focus-visible, .blatField input:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 4px;
 }
@@ -143,6 +143,13 @@
 .fontStatus { grid-column: 1 / -1; min-height: 20px; overflow-wrap: anywhere; }
 .launch:disabled, .iconButton:disabled { opacity: 0.5; cursor: not-allowed; }
 .timerSample { min-width: 0; font-size: 30px; font-weight: 700; white-space: nowrap; text-align: right; text-shadow: 2px 2px 3px #00000080; }
+.sampleFrame { position: relative; min-width: 0; }
+.rotationField { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px 12px; min-width: 0; margin: 0; padding: 0; border: 0; font-size: 13px; }
+.rotationField legend { margin-bottom: 6px; padding: 0; font-weight: 400; }
+.rotationOption, .blatField { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; cursor: pointer; }
+.rotationOption input, .blatField input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; accent-color: #60a5fa; }
+.rotationOption input:disabled { cursor: not-allowed; }
+.rotationOption span { min-width: 0; overflow-wrap: anywhere; }
 .metrics { display: grid; margin-bottom: 24px; }
 .metric { border-bottom: 1px solid #ffffff16; }
 .metricHeader { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding: 6px 0; }
@@ -162,7 +169,8 @@
 
 @media (max-width: 650px) {
   .timerControls { grid-template-columns: 100px minmax(0, 1fr); gap: 16px; }
-  .timerSample { grid-column: 1 / -1; text-align: left; }
+  .sampleFrame { grid-column: 1 / -1; }
+  .timerSample { text-align: left; }
 }
 
 @media (max-width: 480px) {

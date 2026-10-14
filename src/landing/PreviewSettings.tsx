@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { ArrowUpRight, ChevronDown, Palette, RotateCcw, Save, Upload } from 'lucide-react';
 import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetName } from '../preview/config';
-import { LARGE_CHECK_BUCKETS, METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, normalizeColor, resolveAppearance, timerLanguage, timerVariant, type TimerFont, type TimerLanguage, type TimerVariant } from '../preview/appearance';
+import { LARGE_CHECK_BUCKETS, METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, normalizeColor, resolveAppearance, timerLanguage, timerStyles, timerVariant, variantOption, type TimerFont, type TimerLanguage, type TimerStyle, type TimerVariant } from '../preview/appearance';
 import TimerFace from '../preview/components/TimerFace';
+import BlatOverlay from '../preview/components/BlatOverlay';
 import { fontErrorMessage, importCustomFont } from '../preview/customFonts';
 import { timerText } from '../preview/timerFormat';
 import { useFittedTimer, useTimerFont } from '../preview/useTimerFont';
@@ -33,7 +34,9 @@ export default function PreviewSettings() {
   const uploadSequence = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const sample = useRef<HTMLDivElement>(null);
+  const faces = timerStyles(draft.appearance.timer);
   const variant = timerVariant(draft.appearance.timer);
+  const usesFont = faces.some((face) => variantOption(face).usesFont);
   const language = timerLanguage(draft.appearance.timer);
   const font = useTimerFont(draft.appearance.timer);
   const family = variant.usesFont ? font.family : undefined;
@@ -73,8 +76,12 @@ export default function PreviewSettings() {
     edit((previous) => ({ ...previous, appearance: { ...previous.appearance, palettes: { ...previous.appearance.palettes, [name]: colors } } }));
   }
 
-  function changeTimer(update: { font?: TimerFont; customFontId?: string; variant?: TimerVariant; language?: TimerLanguage }) {
+  function changeTimer(update: { font?: TimerFont; customFontId?: string; variant?: TimerStyle; rotation?: TimerVariant[]; language?: TimerLanguage; blat?: boolean }) {
     edit((previous) => ({ ...previous, appearance: { ...previous.appearance, timer: resolveAppearance({ timer: { ...previous.appearance.timer, ...update } }).timer } }));
+  }
+
+  function changeStyle(value: TimerStyle) {
+    changeTimer(value === 'rotation' ? { variant: value, rotation: TIMER_VARIANTS.map((option) => option.value) } : { variant: value });
   }
 
   function changeFont(value: TimerFont) {
@@ -122,11 +129,26 @@ export default function PreviewSettings() {
             <div className={styles.timerFields}>
               <div className={styles.styleField}>
                 <label htmlFor="preview-timer-variant">Timer style</label>
-                <select id="preview-timer-variant" value={variant.value} onChange={(event) => changeTimer({ variant: event.target.value as TimerVariant })}>
+                <select id="preview-timer-variant" value={draft.appearance.timer.variant ?? 'digital'} onChange={(event) => changeStyle(event.target.value as TimerStyle)}>
                   {TIMER_VARIANTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                  <option value="rotation">Rotation</option>
                 </select>
               </div>
-              {variant.value === 'words' && (
+              {draft.appearance.timer.variant === 'rotation' && (
+                <fieldset className={styles.rotationField}>
+                  <legend>Rotation styles</legend>
+                  {TIMER_VARIANTS.map(({ value, label }) => {
+                    const checked = faces.includes(value);
+                    return (
+                      <label key={value} htmlFor={`preview-timer-rotation-${value}`} className={styles.rotationOption}>
+                        <input id={`preview-timer-rotation-${value}`} type="checkbox" checked={checked} disabled={checked && faces.length <= 2} onChange={(event) => changeTimer({ rotation: event.target.checked ? [...faces, value] : faces.filter((face) => face !== value) })} />
+                        <span>{label}</span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              )}
+              {faces.includes('words') && (
                 <div className={styles.languageField}>
                   <label htmlFor="preview-timer-language">Words language</label>
                   <select id="preview-timer-language" value={language} onChange={(event) => changeTimer({ language: event.target.value as TimerLanguage })}>
@@ -137,11 +159,11 @@ export default function PreviewSettings() {
               <div className={styles.fontField}>
                 <label htmlFor="preview-timer-font">Timer font</label>
                 <div className={styles.fontControls}>
-                  <select id="preview-timer-font" value={draft.appearance.timer.font} disabled={!variant.usesFont} onChange={(event) => changeFont(event.target.value as TimerFont)}>
+                  <select id="preview-timer-font" value={draft.appearance.timer.font} disabled={!usesFont} onChange={(event) => changeFont(event.target.value as TimerFont)}>
                     {TIMER_FONTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                     {customFont && <option value="custom">Custom: {customFont.name}</option>}
                   </select>
-                  <button type="button" className={styles.iconButton} aria-label="Upload timer font" title="Upload timer font" disabled={importing || !variant.usesFont} onClick={() => fileInput.current?.click()}><Upload size={18} aria-hidden="true" /></button>
+                  <button type="button" className={styles.iconButton} aria-label="Upload timer font" title="Upload timer font" disabled={importing || !usesFont} onClick={() => fileInput.current?.click()}><Upload size={18} aria-hidden="true" /></button>
                   <input ref={fileInput} aria-label="Custom font file" type="file" accept=".woff2,.woff,.ttf,.otf" hidden onChange={(event) => {
                     const file = event.target.files?.[0];
                     event.target.value = '';
@@ -150,8 +172,15 @@ export default function PreviewSettings() {
                 </div>
                 {customFont && <span className={styles.fontName} title={customFont.name}>{customFont.name}</span>}
               </div>
+              <label htmlFor="preview-timer-blat" className={styles.blatField}>
+                <input id="preview-timer-blat" type="checkbox" role="switch" checked={draft.appearance.timer.blat === true} onChange={(event) => changeTimer({ blat: event.target.checked })} />
+                <span>BLAT</span>
+              </label>
             </div>
-            <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: family, ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}><TimerFace variant={variant.value} ms={sampleMs} scale={0.5} language={language} /></div>
+            <div className={styles.sampleFrame}>
+              <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: family, ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}><TimerFace variant={variant.value} ms={sampleMs} scale={0.5} language={language} /></div>
+              {draft.appearance.timer.blat && <BlatOverlay size={15} color={draft.appearance.timer.color} />}
+            </div>
             <span aria-label="Font status" aria-live="polite" className={`${styles.fontStatus} ${uploadError || font.error ? styles.error : styles.status}`}>{importing ? 'Importing font' : uploadError ?? (font.loading ? 'Loading font' : font.error ?? '')}</span>
           </div>
         </fieldset>

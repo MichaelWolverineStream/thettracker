@@ -39,9 +39,10 @@ export const TIMER_LANGUAGES = [
 
 export type TimerFont = typeof TIMER_FONTS[number]['value'] | 'custom';
 export type TimerVariant = typeof TIMER_VARIANTS[number]['value'];
+export type TimerStyle = TimerVariant | 'rotation';
 export type TimerLanguage = typeof TIMER_LANGUAGES[number]['value'];
 export interface AppearanceSettings {
-  timer: { color: string; font: TimerFont; customFontId?: string; variant?: Exclude<TimerVariant, 'digital'>; language?: Exclude<TimerLanguage, 'en'> };
+  timer: { color: string; font: TimerFont; customFontId?: string; variant?: Exclude<TimerStyle, 'digital'>; rotation?: TimerVariant[]; language?: Exclude<TimerLanguage, 'en'>; blat?: true };
   palettes: Record<WidgetName, readonly string[]>;
 }
 
@@ -91,7 +92,9 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
   const palettes = isRecord(input.palettes) ? input.palettes : {};
   const customFontId = timer.font === 'custom' && isCustomFontId(timer.customFontId) ? timer.customFontId : undefined;
   const font: TimerFont = customFontId ? 'custom' : TIMER_FONTS.find((option) => option.value === timer.font)?.value ?? 'default';
-  const variant = TIMER_VARIANTS.find((option) => option.value === timer.variant && option.value !== 'digital')?.value as AppearanceSettings['timer']['variant'];
+  const listed: unknown[] = timer.variant === 'rotation' && Array.isArray(timer.rotation) ? timer.rotation : [];
+  const rotation = TIMER_VARIANTS.filter((option) => listed.includes(option.value)).map((option) => option.value);
+  const variant = rotation.length >= 2 ? 'rotation' : TIMER_VARIANTS.find((option) => option.value === timer.variant && option.value !== 'digital')?.value as AppearanceSettings['timer']['variant'];
   const language = TIMER_LANGUAGES.find((option) => option.value === timer.language && option.value !== 'en')?.value as AppearanceSettings['timer']['language'];
   const resolved = {} as AppearanceSettings['palettes'];
   for (const name of Object.keys(METRICS) as WidgetName[]) {
@@ -100,11 +103,20 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
       ? colors.map((color) => normalizeColor(color)!)
       : [...METRICS[name].colors];
   }
-  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}), ...(variant ? { variant } : {}), ...(language ? { language } : {}) }, palettes: resolved };
+  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}), ...(variant ? { variant } : {}), ...(variant === 'rotation' ? { rotation } : {}), ...(language ? { language } : {}), ...(timer.blat === true ? { blat: true as const } : {}) }, palettes: resolved };
+}
+
+export function variantOption(value: TimerVariant) {
+  return TIMER_VARIANTS.find((option) => option.value === value)!;
+}
+
+export function timerStyles(timer: AppearanceSettings['timer']): TimerVariant[] {
+  if (timer.variant === 'rotation') return timer.rotation?.length ? timer.rotation : ['digital'];
+  return [timer.variant ?? 'digital'];
 }
 
 export function timerVariant(timer: AppearanceSettings['timer']) {
-  return TIMER_VARIANTS.find((option) => option.value === (timer.variant ?? 'digital'))!;
+  return variantOption(timerStyles(timer)[0]);
 }
 
 export function timerLanguage(timer: AppearanceSettings['timer']): TimerLanguage {

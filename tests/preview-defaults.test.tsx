@@ -223,6 +223,63 @@ describe('preview editor draft and save lifecycle', () => {
     expect(language().value).toBe('sv');
   });
 
+  it('selects every style for Rotation, keeps at least two and launches the selection', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<LaunchPage />);
+    const style = preview().getByLabelText('Timer style') as HTMLSelectElement;
+    const font = preview().getByLabelText('Timer font') as HTMLSelectElement;
+    expect(preview().queryByRole('group', { name: 'Rotation styles' })).toBeNull();
+    fireEvent.change(style, { target: { value: 'rotation' } });
+    expect(style.value).toBe('rotation');
+    const group = within(preview().getByRole('group', { name: 'Rotation styles' }));
+    const option = (name: string) => group.getByRole('checkbox', { name }) as HTMLInputElement;
+    expect(group.getAllByRole('checkbox').map((box) => (box as HTMLInputElement).checked)).toEqual(Array(9).fill(true));
+    expect(preview().getByLabelText('Words language')).toBeTruthy();
+    expect(preview().getByLabelText('Timer preview').textContent).toBe('00:00:00');
+    for (const name of ['Digital', 'Words', 'Compact', 'Flip clock', 'Roman numerals', 'Analog stopclock']) fireEvent.click(option(name));
+    expect(preview().queryByLabelText('Words language')).toBeNull();
+    expect(font.disabled).toBe(true);
+    expect((preview().getByRole('button', { name: 'Upload timer font' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(option('Progress rings').disabled).toBe(false);
+    fireEvent.click(option('Seven-segment LCD'));
+    expect(option('Progress rings').disabled).toBe(true);
+    expect(option('Binary clock').disabled).toBe(true);
+    expect(option('Digital').disabled).toBe(false);
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'rotation', rotation: ['rings', 'binary'] });
+    fireEvent.click(option('Analog stopclock'));
+    expect(font.disabled).toBe(false);
+    fireEvent.change(style, { target: { value: 'lcd' } });
+    expect(preview().queryByRole('group', { name: 'Rotation styles' })).toBeNull();
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('toggles the BLAT switch, previews it, saves, launches and resets it', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<LaunchPage />);
+    const blat = preview().getByRole('switch', { name: 'BLAT' }) as HTMLInputElement;
+    const overlay = () => preview().getByLabelText('Timer preview').parentElement!.querySelector<HTMLSpanElement>('.timer-blat');
+    expect(blat.checked).toBe(false);
+    expect(overlay()).toBeNull();
+    expect(preview().getAllByRole('checkbox')).toHaveLength(8);
+    fireEvent.click(blat);
+    expect(blat.checked).toBe(true);
+    expect(preview().getByRole('status').textContent).toBe('Unsaved');
+    expect(overlay()!.textContent).toBe('BLAT!!!');
+    expect(overlay()!.style.fontSize).toBe('15px');
+    expect(preview().getByLabelText('Timer preview').textContent).toBe('00:00:00');
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', blat: true });
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer.blat).toBe(true);
+    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
+    expect(blat.checked).toBe(false);
+    expect(overlay()).toBeNull();
+    cleanup();
+    render(<LaunchPage />);
+    expect((preview().getByRole('switch', { name: 'BLAT' }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it('loads only at mount, saves explicitly, and resets only the current draft until saved', () => {
     const initial = factoryPreviewDefaults();
     initial.widgets.magic = false;

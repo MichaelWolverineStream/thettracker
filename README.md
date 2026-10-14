@@ -75,6 +75,22 @@ Roman numerals always show hours, minutes and seconds, using an em dash for a
 zero unit (`—:IV:III`). Flip cards animate only when a digit changes and do not
 animate when the system requests reduced motion.
 
+**Rotation** (token `rotation`) appears last in the style menu. Choosing it
+checks every style; uncheck styles to narrow the set, with at least two always
+kept. While the timer runs, the tracker starts on a random selected style and
+switches to a different one after a random 10–100 seconds. Paused or stopped
+timers keep their current style and choose a fresh delay when they resume. The
+launcher sample shows the first selected style, and the font controls and Words
+language menu apply when any selected style uses them.
+
+The **BLAT** switch overlays `BLAT!!!` in Impact on the timer while it runs. It
+jumps to a random position and angle (0–360°) five times per second at half the
+normal timer size (18px on the tracker, 15px on the launcher sample, for every
+style), in the timer color. The overlay is decorative and hidden from assistive
+technology. Impact is a system font and is not bundled; where it is missing, the
+overlay falls back to Haettenschweiler, Arial Narrow Bold or the system
+sans-serif font.
+
 When Words is selected, a **Words language** menu chooses how it is written.
 The language is kept when switching to another style and back.
 
@@ -167,6 +183,12 @@ values fall back independently to Digital.
 The optional `timer.language` takes one of the language tokens above and is
 omitted for English; missing or invalid values fall back independently to
 English.
+With `timer.variant` set to `rotation`, `timer.rotation` lists the selected
+style tokens, for example `"rotation": ["analog", "lcd", "flip"]`. Tokens are
+deduplicated and normalized to the style-table order; unknown tokens are
+ignored, and fewer than two valid styles fall back to Digital. The list is
+omitted for other styles. The optional `timer.blat` is `true` when BLAT is on
+and omitted otherwise.
 Palette keys use the existing widget query IDs. New launcher URLs include every
 palette, including disabled/default ones, and remain under 2 KB. Partial values
 are accepted for shared links: omitted fields resolve to factory appearance,
@@ -297,8 +319,12 @@ For a popup-independent Checks-only view, open
 the port to match the running server.
 
 Without a game connection, Disconnected/Error status and WebSocket connection
-errors are expected. The timer remains at `00:00:00`: it starts from live game
-events, and there is no offline start control. Live statistics do not update,
+errors are expected. The timer remains at `00:00:00` until it starts from live
+game events. Preview also shows a **FORCE TIMER START** button while the timer
+has never started and no SNI device is attached (status other than
+`Connected to …`). It starts the timer immediately and is then replaced by the
+normal pause/resume and DE-FLUFF controls. Legacy has no offline start control.
+Live statistics do not update,
 and legacy rates may display `NaN` or `Infinity` before the timer starts. Preview
 rates are `0` until their time denominator is available. Manual check adjustments
 still work in both versions.

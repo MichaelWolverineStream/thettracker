@@ -292,6 +292,44 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     expect(words.container.querySelector('h2')!.textContent).toBe('Two seconds');
   });
 
+  it('offers a forced start only until a device is attached', () => {
+    const view = render(<ShouldStartProvider><PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" /></ShouldStartProvider>);
+    const force = () => view.queryByRole('button', { name: 'FORCE TIMER START' });
+    const socket = FakeSniSocket.instances[0];
+    expect(force()).not.toBeNull();
+    act(() => socket.open());
+    expect(force()).not.toBeNull();
+    reply(socket, JSON.stringify({ Results: [] }));
+    expect(view.getByText('No devices found')).toBeTruthy();
+    expect(force()).not.toBeNull();
+    advance(5000);
+    reply(socket, JSON.stringify({ Results: ['Fixture'] }));
+    expect(view.getByText('Connected to Fixture')).toBeTruthy();
+    expect(force()).toBeNull();
+    act(() => socket.fail());
+    expect(force()).not.toBeNull();
+  });
+
+  it('force-starts the timer without SNI and hands over to the normal controls', () => {
+    const view = render(<ShouldStartProvider>
+      <PreviewApp {...DEFAULT_LAUNCH_SETTINGS} boxes="3" />
+      <AutoStartProbe />
+    </ShouldStartProvider>);
+    act(() => FakeSniSocket.instances[0].fail());
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:00');
+    fireEvent.click(view.getByRole('button', { name: 'FORCE TIMER START' }));
+    expect(view.getByTestId('auto-start').textContent).toBe('false:true');
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:01');
+    expect(view.queryByRole('button', { name: 'FORCE TIMER START' })).toBeNull();
+    expect(view.getByText('DE-FLUFF')).toBeTruthy();
+    advance(1000);
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:02');
+    fireEvent.click(view.getAllByRole('button')[1]);
+    advance(2000);
+    expect(view.container.querySelector('h2')!.textContent).toBe('00:00:02');
+    expect(view.queryByRole('button', { name: 'FORCE TIMER START' })).toBeNull();
+  });
+
   it('keeps retrying absent SNI indefinitely without faster attempts and connects when it appears', () => {
     const view = renderSni();
     for (let attempt = 0; attempt < 30; attempt += 1) {

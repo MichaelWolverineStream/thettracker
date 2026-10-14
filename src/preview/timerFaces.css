@@ -71,3 +71,16 @@
 @media (prefers-reduced-motion: reduce) {
   .timer-flip-digit { animation: none; }
 }
+
+.timer-blat {
+  position: absolute;
+  z-index: 1;
+  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  user-select: none;
+}

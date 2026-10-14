@@ -577,7 +577,7 @@ test('previews timer styles in the launcher and respects reduced motion', async 
   const style = preview.getByLabel('Timer style', { exact: true });
   const font = preview.getByLabel('Timer font', { exact: true });
   const sample = preview.getByLabel('Timer preview', { exact: true });
-  await expect(style.locator('option')).toHaveCount(TIMER_VARIANTS.length);
+  await expect(style.locator('option')).toHaveCount(TIMER_VARIANTS.length + 1);
   await font.selectOption('bungee');
   for (const { value, layout, usesFont } of TIMER_VARIANTS) {
     await style.selectOption(value);
@@ -600,6 +600,86 @@ test('previews timer styles in the launcher and respects reduced motion', async 
   await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
   expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'bungee', variant: 'flip' });
   await expect(popup.locator('h2 .timer-face-flip')).toHaveText('00:00:00');
+});
+
+test('configures Rotation and BLAT in the launcher and launches them', async ({ page, context }) => {
+  await context.routeWebSocket('ws://localhost:23074', idleDevice);
+  await page.goto('./index.html');
+  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  await preview.getByLabel('Timer style', { exact: true }).selectOption('rotation');
+  const group = preview.getByRole('group', { name: 'Rotation styles' });
+  await expect(group.getByRole('checkbox', { checked: true })).toHaveCount(TIMER_VARIANTS.length);
+  for (const name of ['Digital', 'Words', 'Compact', 'Flip clock', 'Roman numerals', 'Seven-segment LCD', 'Progress rings']) await group.getByRole('checkbox', { name, exact: true }).uncheck();
+  await expect(group.getByRole('checkbox', { name: 'Analog stopclock', exact: true })).toBeDisabled();
+  await expect(group.getByRole('checkbox', { name: 'Binary clock', exact: true })).toBeDisabled();
+  await preview.getByRole('switch', { name: 'BLAT' }).check();
+  const blat = preview.locator('.timer-blat');
+  await expect(blat).toHaveText('BLAT!!!');
+  await expect(blat).toHaveCSS('font-family', /^Impact,/);
+  await expect(blat).toHaveCSS('font-size', '15px');
+  await expect(preview.getByRole('checkbox')).toHaveCount(8 + TIMER_VARIANTS.length);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `test-results/rotation-blat-editor-${page.viewportSize()!.width}.png`, fullPage: true, animations: 'disabled' });
+  const opened = page.waitForEvent('popup');
+  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
+  const popup = await opened;
+  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
+  expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'rotation', rotation: ['analog', 'binary'], blat: true });
+  await expect(popup.locator('h2 .timer-face')).toHaveClass(/timer-face-(analog|binary)$/);
+});
+
+test('force-starts a rotating BLAT timer without SNI, switching styles only while running', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
+  await page.routeWebSocket('ws://localhost:23074', (socket) => socket.close({ reason: 'SNI not running' }));
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const appearance = resolveAppearance({ timer: { color: '#C43D52', font: 'bungee', variant: 'rotation', rotation: ['lcd', 'binary'], blat: true } });
+  await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
+  await expect(page.getByText('Disconnected: SNI not running', { exact: true })).toBeVisible();
+  const face = page.locator('h2 .timer-face');
+  const blat = page.locator('.timer-blat');
+  const force = page.getByRole('button', { name: 'FORCE TIMER START' });
+  const initial = (await face.getAttribute('class'))!;
+  const other = initial.endsWith('lcd') ? 'timer-face timer-face-binary' : 'timer-face timer-face-lcd';
+  expect(initial).toMatch(/^timer-face timer-face-(lcd|binary)$/);
+  await expect(force).toBeVisible();
+  await expect(blat).toHaveCount(0);
+  await page.clock.runFor(100_000);
+  await expect(face).toHaveAttribute('class', initial);
+  await expect(face).toHaveAttribute('aria-label', '00:00:00');
+  await force.click();
+  await page.clock.runFor(1000);
+  await expect(face).toHaveAttribute('aria-label', '00:00:02');
+  await expect(force).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
+  await expect(blat).toHaveText('BLAT!!!');
+  await expect(blat).toHaveCSS('font-family', /^Impact,/);
+  await expect(blat).toHaveCSS('font-size', '18px');
+  await expect(blat).toHaveCSS('color', 'rgb(196, 61, 82)');
+  await expect(blat).toHaveAttribute('aria-hidden', 'true');
+  for (let move = 0; move < 5; move += 1) {
+    const before = await blat.getAttribute('style');
+    await page.clock.runFor(200);
+    await expect(blat).not.toHaveAttribute('style', before!);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.screenshot({ path: `test-results/rotation-blat-timer-${page.viewportSize()!.width}.png`, fullPage: true });
+  let elapsed = 2000;
+  while (await face.getAttribute('class') === initial && elapsed < 101_000) {
+    await page.clock.runFor(1000);
+    elapsed += 1000;
+  }
+  expect(elapsed).toBeGreaterThanOrEqual(10_000);
+  await expect(face).toHaveAttribute('class', other);
+  await page.getByRole('button', { name: 'DE-FLUFF' }).locator('xpath=preceding-sibling::button').click();
+  await expect(blat).toHaveCount(0);
+  const paused = (await face.getAttribute('aria-label'))!;
+  await page.clock.runFor(200_000);
+  await expect(face).toHaveAttribute('class', other);
+  await expect(face).toHaveAttribute('aria-label', paused);
+  await expect(force).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
 
 test('writes the words timer in every language inside each viewport', async ({ page }) => {

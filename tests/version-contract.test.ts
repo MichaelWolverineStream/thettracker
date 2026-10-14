@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveVersion } from '../src/versionRouting';
 import { DEFAULT_LAUNCH_SETTINGS, WIDGETS, buildPreviewUrl, determineBoxCount, parsePreviewSettings } from '../src/preview/config';
 import { DEFAULT_LEGACY_SETTINGS, buildLegacyUrl } from '../src/landing/legacyLaunch';
-import { METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, parseAppearance, resolveAppearance, timerLanguage, timerVariant } from '../src/preview/appearance';
+import { METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, parseAppearance, resolveAppearance, timerLanguage, timerStyles, timerVariant } from '../src/preview/appearance';
 
 describe('version routing', () => {
   it.each(['', '?version=2', '?version=0.1.0-preview', '?tracker=false', '?tracker=TRUE', '?tracker=1', '?tracker=&tracker=true'])('shows landing for %s', (search) => {
@@ -107,6 +107,40 @@ describe('appearance URL contract', () => {
 
   it('discards custom metadata when a built-in font is selected', () => {
     expect(resolveAppearance({ timer: { font: 'bungee', customFontId: 'a'.repeat(32) } }).timer).toEqual({ color: '#3B82F6', font: 'bungee' });
+  });
+
+  it('round-trips every style in rotation with BLAT and keeps URLs compact', () => {
+    const all = TIMER_VARIANTS.map(({ value }) => value);
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'custom', customFontId: 'c'.repeat(32), variant: 'rotation', rotation: [...all].reverse(), language: 'tlh', blat: true } });
+    const url = buildPreviewUrl({ ...DEFAULT_LAUNCH_SETTINGS, boxes: '4', appearance });
+    expect(url.length).toBeLessThan(2048);
+    expect(parsePreviewSettings(new URL(url, 'https://example.com/nested/').search).appearance).toEqual(appearance);
+    expect(JSON.stringify(appearance.timer)).toBe(JSON.stringify({ color: '#123ABC', font: 'custom', customFontId: 'c'.repeat(32), variant: 'rotation', rotation: all, language: 'tlh', blat: true }));
+    expect(timerStyles(appearance.timer)).toEqual(all);
+    expect(timerVariant(appearance.timer).value).toBe('digital');
+  });
+
+  it('normalizes rotation lists to registry order without duplicates or unknown styles', () => {
+    const appearance = resolveAppearance({ timer: { variant: 'rotation', rotation: ['flip', 'rotation', 'analog', 'flip', 'clock', 3, 'analog'] } });
+    expect(appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'rotation', rotation: ['analog', 'flip'] });
+    expect(timerStyles(appearance.timer)).toEqual(['analog', 'flip']);
+    expect(timerVariant(appearance.timer).value).toBe('analog');
+  });
+
+  it.each([undefined, null, 'analog', {}, [], ['analog'], ['analog', 'analog'], ['rotation', 'flip'], ['clock', 'Analog']])('falls back to digital for invalid rotation case %# independently', (rotation) => {
+    const appearance = resolveAppearance({ timer: { color: '#123abc', font: 'bungee', variant: 'rotation', rotation, language: 'fr' } });
+    expect(appearance.timer).toEqual({ color: '#123ABC', font: 'bungee', language: 'fr' });
+    expect(timerStyles(appearance.timer)).toEqual(['digital']);
+  });
+
+  it('drops rotation lists for single timer styles', () => {
+    expect(resolveAppearance({ timer: { variant: 'lcd', rotation: ['analog', 'flip'] } }).timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'lcd' });
+    expect(resolveAppearance({ timer: { rotation: ['analog', 'flip'] } }).timer).toEqual({ color: '#3B82F6', font: 'default' });
+  });
+
+  it.each([undefined, null, false, 'true', 1, {}, [true]])('omits BLAT unless it is literally true, case %#', (blat) => {
+    expect(resolveAppearance({ timer: { variant: 'binary', blat } }).timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'binary' });
+    expect(resolveAppearance({ timer: { variant: 'binary', blat: true } }).timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'binary', blat: true });
   });
 
   it.each(TIMER_FONTS)('round-trips all 32 custom stops with $label and keeps URLs compact', ({ value }) => {
