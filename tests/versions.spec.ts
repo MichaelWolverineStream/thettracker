@@ -761,10 +761,23 @@ test('force-starts a rotating BLAT timer without SNI, switching styles only whil
   await expect(blat).toHaveCSS('font-size', '18px');
   await expect(blat).toHaveCSS('color', 'rgb(196, 61, 82)');
   await expect(blat).toHaveAttribute('aria-hidden', 'true');
-  for (let move = 0; move < 5; move += 1) {
+  await expect(blat).toHaveCSS('-webkit-text-stroke-width', '2px');
+  await expect(blat).toHaveCSS('-webkit-text-stroke-color', 'rgb(0, 0, 0)');
+  await expect(blat).toHaveCSS('paint-order', 'stroke');
+  for (let move = 0; move < 20; move += 1) {
     const before = await blat.getAttribute('style');
-    await page.clock.runFor(200);
+    await page.clock.runFor(300);
     await expect(blat).not.toHaveAttribute('style', before!);
+    const placement = await blat.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const frame = element.parentElement!.getBoundingClientRect();
+      return {
+        angle: Number((element as HTMLElement).style.transform.match(/rotate\((-?[\d.e-]+)deg\)/)![1]),
+        inside: box.left >= frame.left && box.right <= frame.right && box.top >= frame.top && box.bottom <= frame.bottom,
+      };
+    });
+    expect(Math.abs(placement.angle)).toBeLessThanOrEqual(80);
+    expect(placement.inside).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   await page.screenshot({ path: `test-results/rotation-blat-timer-${page.viewportSize()!.width}.png`, fullPage: true });

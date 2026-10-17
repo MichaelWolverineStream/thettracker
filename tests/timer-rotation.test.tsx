@@ -144,12 +144,17 @@ describe('BLAT overlay', () => {
     expect(heading().parentElement!.style.overflow).toBe('clip');
     expect(heading().textContent).not.toContain('BLAT');
     const before = overlay.getAttribute('style');
-    advance(200);
+    advance(300);
     expect(blat()!.getAttribute('style')).not.toBe(before);
-    expect(blat()!.style.transform).toMatch(/^translate\(-50%, -50%\) rotate\([\d.]+deg\)$/);
+    const angle = Number(blat()!.style.transform.match(/^translate\(-50%, -50%\) rotate\((-?[\d.]+)deg\)$/)![1]);
+    expect(Math.abs(angle)).toBeLessThanOrEqual(80);
+    expect(blat()!.getAttribute('style')).toMatch(/left: calc\(28\.8px \+ [\d.]+ \* \(100% - 57\.6px\)\)/);
+    expect(blat()!.getAttribute('style')).toMatch(/top: calc\(28\.8px \+ [\d.]+ \* \(100% - 57\.6px\)\)/);
     fireEvent.click(view.getByText('halt'));
     expect(blat()).toBeNull();
-    expect(readFileSync('src/preview/timerFaces.css', 'utf8')).toMatch(/\.timer-blat\s*{[^}]*font-family:\s*Impact,/);
+    const css = readFileSync('src/preview/timerFaces.css', 'utf8');
+    expect(css).toMatch(/\.timer-blat\s*{[^}]*font-family:\s*Impact,/);
+    expect(css).toMatch(/\.timer-blat\s*{[^}]*-webkit-text-stroke:\s*2px #000;[^}]*paint-order:\s*stroke fill;/);
   });
 
   it('keeps the default wrapper markup when BLAT is off', () => {
