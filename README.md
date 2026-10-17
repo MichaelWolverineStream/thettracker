@@ -72,7 +72,10 @@ the analog hour hand and hour ring turn once per 12 hours. Words omits zero
 units, joins two units with "and", uses an Oxford comma for three and wraps
 onto several lines; it reads "There is still time" before the run starts.
 Roman numerals always show hours, minutes and seconds, using an em dash for a
-zero unit (`—:IV:III`). Flip cards animate only when a digit changes and do not
+zero unit (`—:IV:III`). On both the tracker and launcher sample, the Roman string
+is right-aligned inside a stable, centered area with side margins, keeping its
+right edge anchored as numeral widths change (also during Rotation).
+Flip cards animate only when a digit changes and do not
 animate when the system requests reduced motion.
 
 **Rotation** (token `rotation`) appears last in the style menu. Choosing it

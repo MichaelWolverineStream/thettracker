@@ -539,6 +539,109 @@ test('loads all timer fonts locally and keeps the timer inside each viewport', a
   expect(responses.every(({ url, ok }) => ok && new URL(url).origin === new URL(page.url()).origin)).toBe(true);
 });
 
+async function expectRomanAlignment(timer: Locator) {
+  await expect.poll(() => timer.locator('.timer-face-roman').evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return Math.abs(range.getBoundingClientRect().right - element.getBoundingClientRect().right);
+  })).toBeLessThanOrEqual(1);
+  const geometry = await timer.locator('.timer-face-roman').evaluate((element) => {
+    const area = element.getBoundingClientRect();
+    const parent = element.parentElement!.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const text = range.getBoundingClientRect();
+    return {
+      leftInset: area.left - parent.left,
+      rightInset: parent.right - area.right,
+      right: area.right,
+      width: area.width,
+      textRight: text.right,
+      textLeft: text.left,
+      left: area.left,
+      overflow: element.scrollWidth > element.clientWidth + 1,
+    };
+  });
+  expect(geometry.leftInset).toBeGreaterThanOrEqual(15);
+  expect(Math.abs(geometry.leftInset - geometry.rightInset)).toBeLessThanOrEqual(1);
+  expect(Math.abs(geometry.textRight - geometry.right)).toBeLessThanOrEqual(1);
+  expect(geometry.textLeft).toBeGreaterThanOrEqual(geometry.left - 1);
+  expect(geometry.overflow).toBe(false);
+  return geometry;
+}
+
+test('anchors Roman timers in a central area across ticks, fonts and style changes', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
+  await page.routeWebSocket('ws://localhost:23074', (socket) => socket.close({ reason: 'SNI not running' }));
+  await page.goto('./index.html');
+  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const style = preview.getByLabel('Timer style', { exact: true });
+  const font = preview.getByLabel('Timer font', { exact: true });
+  const sample = preview.getByLabel('Timer preview', { exact: true });
+  await preview.getByLabel('Custom font file', { exact: true }).setInputFiles(customFontFile);
+  await expect(font).toHaveValue('custom');
+  await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('');
+  const family = (await sample.evaluate((element) => getComputedStyle(element).fontFamily)).split('"')[1];
+  const customFontId = family.replace('Tracker Custom ', '');
+  for (const value of ['default', 'bungee', 'custom']) {
+    await font.selectOption(value);
+    await style.selectOption('roman');
+    await expect(sample).toHaveText('I:IV:III');
+    await page.evaluate(() => document.fonts.ready);
+    await expectRomanAlignment(sample);
+  }
+  await page.screenshot({ path: `test-results/roman-sample-${page.viewportSize()!.width}.png`, fullPage: true });
+  await style.selectOption('digital');
+  await expect(sample.locator('.timer-face-roman')).toHaveCount(0);
+  await style.selectOption('roman');
+  await expectRomanAlignment(sample);
+
+  for (const font of ['default', 'bungee', 'custom']) {
+    const appearance = resolveAppearance({ timer: { font, customFontId, variant: 'roman' } });
+    await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
+    await expect(page.getByText('Disconnected: SNI not running', { exact: true })).toBeVisible();
+    const timer = page.locator('h2');
+    await expect(timer).toHaveText('—:—:—');
+    if (font === 'custom') await expectCustomFont(timer, customFontId);
+    await page.evaluate(() => document.fonts.ready);
+    const initial = await expectRomanAlignment(timer);
+    const started = await page.evaluate(() => Date.now());
+    await page.getByRole('button', { name: 'FORCE TIMER START' }).click();
+    for (const seconds of [1, 3, 4, 8, 9, 58, 59, 60, 3599, 3600, 25 * 3600 + 48 * 60 + 38, 100000 * 3600]) {
+      await page.clock.setSystemTime(started + (seconds - 1) * 1000);
+      await page.clock.runFor(125);
+      await expect(timer).toHaveText(timerText('roman', seconds * 1000));
+      const current = await expectRomanAlignment(timer);
+      expect(Math.abs(current.right - initial.right)).toBeLessThanOrEqual(1);
+      expect(Math.abs(current.width - initial.width)).toBeLessThanOrEqual(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (seconds === 25 * 3600 + 48 * 60 + 38) {
+        await page.screenshot({ path: `test-results/roman-${font}-${page.viewportSize()!.width}.png`, fullPage: true });
+      }
+    }
+    expect(await timer.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeLessThan(36);
+    const originalViewport = page.viewportSize()!;
+    await page.setViewportSize({ ...originalViewport, width: 320 });
+    await expectRomanAlignment(timer);
+    await page.setViewportSize(originalViewport);
+    await expectRomanAlignment(timer);
+  }
+
+  await page.addInitScript(() => { Math.random = () => 0; });
+  const appearance = resolveAppearance({ timer: { variant: 'rotation', rotation: ['digital', 'roman'] } });
+  await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
+  const timer = page.locator('h2');
+  await page.getByRole('button', { name: 'FORCE TIMER START' }).click();
+  await expect(timer.locator('.timer-face-roman')).toHaveCount(0);
+  await page.clock.runFor(10000);
+  await expect(timer.locator('.timer-face-roman')).toBeVisible();
+  await expectRomanAlignment(timer);
+  await page.clock.runFor(10000);
+  await expect(timer.locator('.timer-face-roman')).toHaveCount(0);
+  await expect(timer).toHaveCSS('font-size', '36px');
+});
+
 test('renders every timer style inside each viewport', async ({ page }) => {
   const elapsed = (3600 + 4 * 60 + 2) * 1000;
   await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });

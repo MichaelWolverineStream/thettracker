@@ -108,6 +108,18 @@ describe('timer faces', () => {
     expect(hand('hour')).toBe('rotate(30 50 50)');
   });
 
+  it('uses a Roman-only alignment area without changing its text', () => {
+    const view = render(<TimerFace variant="roman" ms={0} />);
+    const area = view.container.querySelector('.timer-face-roman');
+    expect(area?.textContent).toBe('—:—:—');
+    view.rerender(<TimerFace variant="roman" ms={time(25, 48, 38)} />);
+    expect(view.container.querySelector('.timer-face-roman')).toBe(area);
+    expect(area?.textContent).toBe('XXV:XLVIII:XXXVIII');
+    view.rerender(<TimerFace variant="digital" ms={ms} />);
+    expect(view.container.querySelector('.timer-face-roman')).toBeNull();
+    expect(view.container.innerHTML).toBe('01:04:03');
+  });
+
   it('lights the matching seven segments', () => {
     const view = render(<TimerFace variant="lcd" ms={ms} />);
     expect(view.getByRole('img', { name: '01:04:03' })).toBeTruthy();

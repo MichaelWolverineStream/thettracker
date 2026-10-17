@@ -115,6 +115,12 @@ describe('timer style rotation', () => {
     advance(10_000);
     expect(heading().textContent).toBe('I:IV:III');
     expect(heading().style.whiteSpace).toBe('nowrap');
+    expect(heading().querySelector('.timer-face-roman')).not.toBeNull();
+    advance(10_000);
+    expect(heading().querySelector('.timer-face-roman')).toBeNull();
+    expect(heading().style.whiteSpace).toBe('');
+    advance(10_000);
+    expect(heading().querySelector('.timer-face-roman')).not.toBeNull();
     fireEvent.click(view.getByText('halt'));
     advance(200_000);
     expect(heading().textContent).toBe('I:IV:III');

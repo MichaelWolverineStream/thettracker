@@ -42,19 +42,34 @@ export function useFittedTimer(ref: RefObject<HTMLElement>, fitKey: string | und
     if (!element || !fitKey) return;
     const range = document.createRange();
     if (typeof range.getBoundingClientRect !== 'function') return;
+    const content = element.querySelector<HTMLElement>('.timer-face-roman') ?? element;
     const fit = () => {
       element.style.fontSize = `${baseSize}px`;
-      range.selectNodeContents(element);
+      range.selectNodeContents(content);
       const width = range.getBoundingClientRect().width;
-      const available = element.clientWidth;
+      const available = content.clientWidth;
       if (width > available && available > 0) element.style.fontSize = `${baseSize * available / width * 0.99}px`;
+      // Font metrics (including optical sizing) do not always scale linearly.
+      if (content !== element && range.getBoundingClientRect().width > available && available > 0) {
+        let low = 0;
+        let high = Number.parseFloat(element.style.fontSize);
+        for (let step = 0; step < 10; step++) {
+          const size = (low + high) / 2;
+          element.style.fontSize = `${size}px`;
+          if (range.getBoundingClientRect().width <= available * 0.99) low = size;
+          else high = size;
+        }
+        element.style.fontSize = `${low}px`;
+      }
     };
     fit();
+    document.fonts?.addEventListener('loadingdone', fit);
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(fit);
     observer?.observe(element);
     window.addEventListener('resize', fit);
     return () => {
       observer?.disconnect();
+      document.fonts?.removeEventListener('loadingdone', fit);
       window.removeEventListener('resize', fit);
       element.style.fontSize = '';
     };

@@ -15,6 +15,7 @@ export default function TimerFace({ variant, ms, scale = 1, language = 'en' }: {
     case 'binary': return <BinaryClock clock={clock} height={72 * scale} />;
     case 'flip': return <FlipClock clock={clock} />;
     case 'words': return <span className="timer-face-words" lang={languageTag(language)}>{timerText(variant, ms, language)}</span>;
+    case 'roman': return <span className="timer-face-roman">{timerText(variant, ms)}</span>;
     default: return <>{timerText(variant, ms)}</>;
   }
 }
