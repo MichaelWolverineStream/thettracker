@@ -241,7 +241,7 @@ test('launches independently configured preview and legacy popups', async ({ pag
   await page.goto('./index.html');
   const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
   const legacy = page.getByRole('region', { name: 'v0.0.43-legacy' });
-  await expect(preview.getByRole('checkbox')).toHaveCount(8);
+  await expect(preview.getByRole('checkbox')).toHaveCount(9);
   await expect(legacy.getByRole('checkbox')).toHaveCount(8);
   expect(sockets).toHaveLength(0);
   expect((await preview.boundingBox())!.y).toBeLessThan((await legacy.boundingBox())!.y);
@@ -720,7 +720,7 @@ test('configures Rotation and BLAT in the launcher and launches them', async ({ 
   await expect(blat).toHaveText('BLAT!!!');
   await expect(blat).toHaveCSS('font-family', /^Impact,/);
   await expect(blat).toHaveCSS('font-size', '15px');
-  await expect(preview.getByRole('checkbox')).toHaveCount(8 + TIMER_VARIANTS.length);
+  await expect(preview.getByRole('checkbox')).toHaveCount(9 + TIMER_VARIANTS.length);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `test-results/rotation-blat-editor-${page.viewportSize()!.width}.png`, fullPage: true, animations: 'disabled' });
   const opened = page.waitForEvent('popup');

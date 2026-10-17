@@ -94,6 +94,13 @@ technology. Impact is a system font and is not bundled; where it is missing, the
 overlay falls back to Haettenschweiler, Arial Narrow Bold or the system
 sans-serif font.
 
+The **BeeBobble** checkbox next to BLAT shows a decorative 112x112 animated bee
+centered above the start/pause controls, slightly overlapping the timer's lower
+edge. It also appears in the launcher sample and loops continuously whenever
+enabled, including before starting and while paused. It is off by default and
+is saved, restored and reset with the other preview appearance settings. Shared
+launch URLs use the optional `timer.beebobble: true` field; it is omitted when off.
+
 When Words is selected, a **Words language** menu chooses how it is written.
 The language is kept when switching to another style and back.
 

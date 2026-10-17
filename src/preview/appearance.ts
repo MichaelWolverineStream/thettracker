@@ -42,7 +42,7 @@ export type TimerVariant = typeof TIMER_VARIANTS[number]['value'];
 export type TimerStyle = TimerVariant | 'rotation';
 export type TimerLanguage = typeof TIMER_LANGUAGES[number]['value'];
 export interface AppearanceSettings {
-  timer: { color: string; font: TimerFont; customFontId?: string; variant?: Exclude<TimerStyle, 'digital'>; rotation?: TimerVariant[]; language?: Exclude<TimerLanguage, 'en'>; blat?: true };
+  timer: { color: string; font: TimerFont; customFontId?: string; variant?: Exclude<TimerStyle, 'digital'>; rotation?: TimerVariant[]; language?: Exclude<TimerLanguage, 'en'>; blat?: true; beebobble?: true };
   palettes: Record<WidgetName, readonly string[]>;
 }
 
@@ -103,7 +103,7 @@ export function resolveAppearance(value: unknown): AppearanceSettings {
       ? colors.map((color) => normalizeColor(color)!)
       : [...METRICS[name].colors];
   }
-  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}), ...(variant ? { variant } : {}), ...(variant === 'rotation' ? { rotation } : {}), ...(language ? { language } : {}), ...(timer.blat === true ? { blat: true as const } : {}) }, palettes: resolved };
+  return { timer: { color: normalizeColor(timer.color) ?? DEFAULT_TIMER_COLOR, font, ...(customFontId ? { customFontId } : {}), ...(variant ? { variant } : {}), ...(variant === 'rotation' ? { rotation } : {}), ...(language ? { language } : {}), ...(timer.blat === true ? { blat: true as const } : {}), ...(timer.beebobble === true ? { beebobble: true as const } : {}) }, palettes: resolved };
 }
 
 export function variantOption(value: TimerVariant) {

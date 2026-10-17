@@ -10,6 +10,7 @@ import { useFittedTimer, useTimerFont } from './useTimerFont';
 import { useTimerRotation } from './useTimerRotation';
 import TimerFace from './components/TimerFace';
 import BlatOverlay from './components/BlatOverlay';
+import BeeBobble from './components/BeeBobble';
 import { timerText } from './timerFormat';
 
 
@@ -137,7 +138,7 @@ function App(props: userSettingsProps) {
             <Box title="Magic Bars" count={magic} speed={mph} unit="mph" buckets={SPEED_MAP.current['mph'].buckets} colors={SPEED_MAP.current['mph'].colors} />
           )}
         </span>
-        <div className="flex justify-center items-center space-x-4 mb-8">
+        <div className={appearance.timer.beebobble ? 'flex justify-center items-center mb-8' : 'flex justify-center items-center space-x-4 mb-8'} style={appearance.timer.beebobble ? { position: 'relative', paddingBottom: 60 } : undefined}>
           <div className="p-4" style={fitKey || blat ? {
             ...(fitKey ? { width: '100%', minWidth: 0, maxWidth: '100%' } : {}),
             ...(blat ? { position: 'relative' as const, overflow: 'clip' as const } : {}),
@@ -152,6 +153,7 @@ function App(props: userSettingsProps) {
               </h2>
               {blat && timerOn && <BlatOverlay size={18} color={appearance.timer.color} />}
           </div>
+          {appearance.timer.beebobble && <BeeBobble />}
         </div>
 
         {!timer.hasStarted && !data.connected && (

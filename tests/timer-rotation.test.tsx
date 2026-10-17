@@ -51,6 +51,53 @@ afterEach(() => {
   fixture.hasStarted = true;
 });
 
+describe('BeeBobble', () => {
+  it('is absent by default', () => {
+    const { view } = renderApp({});
+    expect(view.container.querySelector('img[src*="beebobble"]')).toBeNull();
+  });
+
+  it('stays mounted before start, while running and while paused alongside BLAT', () => {
+    fixture.hasStarted = false;
+    const { view, blat } = renderApp({ beebobble: true, blat: true });
+    const bee = view.container.querySelector<HTMLImageElement>('img[src*="beebobble"]')!;
+    expect(bee.width).toBe(112);
+    expect(bee.height).toBe(112);
+    expect(bee.alt).toBe('');
+    expect(bee.getAttribute('aria-hidden')).toBe('true');
+    expect(blat()).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: 'FORCE TIMER START' }));
+    advance(1000);
+    expect(blat()).not.toBeNull();
+    expect(view.container.querySelector('img[src*="beebobble"]')).toBe(bee);
+    fireEvent.click(view.getByRole('button', { name: 'halt' }));
+    expect(blat()).toBeNull();
+    expect(view.container.querySelector('img[src*="beebobble"]')).toBe(bee);
+  });
+
+  it.each([undefined, null, false, 'true', 1, {}, [true]])('accepts only literal true, case %#', (beebobble) => {
+    expect(resolveAppearance({ timer: { beebobble } }).timer.beebobble).toBeUndefined();
+    expect(resolveAppearance({ timer: { beebobble: true } }).timer.beebobble).toBe(true);
+  });
+
+  it('uses an animated WebP asset configured to loop indefinitely', () => {
+    const asset = readFileSync('src/assets/beebobble.webp');
+    expect(asset.toString('ascii', 0, 4)).toBe('RIFF');
+    expect(asset.toString('ascii', 8, 12)).toBe('WEBP');
+    let frames = 0;
+    let loops: number | undefined;
+    for (let offset = 12; offset + 8 <= asset.length;) {
+      const chunk = asset.toString('ascii', offset, offset + 4);
+      const length = asset.readUInt32LE(offset + 4);
+      if (chunk === 'ANIM') loops = asset.readUInt16LE(offset + 12);
+      if (chunk === 'ANMF') frames += 1;
+      offset += 8 + length + (length % 2);
+    }
+    expect(frames).toBeGreaterThan(1);
+    expect(loops).toBe(0);
+  });
+});
+
 describe('timer style rotation', () => {
   it('starts on a random selected style and never switches before the timer runs', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);

@@ -1,0 +1,11 @@
+.bee {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 112px;
+  height: 112px;
+  max-width: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+  user-select: none;
+}

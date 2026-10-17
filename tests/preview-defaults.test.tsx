@@ -17,6 +17,32 @@ afterEach(() => {
 describe('preview editor draft and save lifecycle', () => {
   const preview = () => within(screen.getByRole('region', { name: 'v0.1.0-preview' }));
 
+  it('previews BeeBobble, launches unsaved changes, saves, restores and resets it independently of BLAT', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const view = render(<LaunchPage />);
+    const checkbox = () => preview().getByRole('checkbox', { name: 'BeeBobble' }) as HTMLInputElement;
+    const bee = () => view.container.querySelector('img[src*="beebobble"]');
+    expect(checkbox().checked).toBe(false);
+    expect(bee()).toBeNull();
+    fireEvent.click(checkbox());
+    expect(bee()!.getAttribute('width')).toBe('112');
+    expect((preview().getByRole('switch', { name: 'BLAT' }) as HTMLInputElement).checked).toBe(false);
+    expect(window.localStorage.length).toBe(0);
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer.beebobble).toBe(true);
+    fireEvent.click(preview().getByRole('switch', { name: 'BLAT' }));
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', blat: true, beebobble: true });
+    view.unmount();
+    render(<LaunchPage />);
+    expect(checkbox().checked).toBe(true);
+    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
+    expect(checkbox().checked).toBe(false);
+    expect(loadPreviewDefaults().appearance.timer.beebobble).toBe(true);
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    expect(loadPreviewDefaults().appearance.timer.beebobble).toBeUndefined();
+  });
+
   it('waits for an upload commit, launches its unsaved ID and saves only metadata explicitly', async () => {
     const id = 'a'.repeat(32);
     let commit!: (asset: fontAssets.CustomFontAsset) => void;
@@ -261,7 +287,7 @@ describe('preview editor draft and save lifecycle', () => {
     const overlay = () => preview().getByLabelText('Timer preview').parentElement!.querySelector<HTMLSpanElement>('.timer-blat');
     expect(blat.checked).toBe(false);
     expect(overlay()).toBeNull();
-    expect(preview().getAllByRole('checkbox')).toHaveLength(8);
+    expect(preview().getAllByRole('checkbox')).toHaveLength(9);
     fireEvent.click(blat);
     expect(blat.checked).toBe(true);
     expect(preview().getByRole('status').textContent).toBe('Unsaved');

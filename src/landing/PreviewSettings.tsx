@@ -4,6 +4,7 @@ import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetName } from '..
 import { LARGE_CHECK_BUCKETS, METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, normalizeColor, resolveAppearance, timerLanguage, timerStyles, timerVariant, variantOption, type TimerFont, type TimerLanguage, type TimerStyle, type TimerVariant } from '../preview/appearance';
 import TimerFace from '../preview/components/TimerFace';
 import BlatOverlay from '../preview/components/BlatOverlay';
+import BeeBobble from '../preview/components/BeeBobble';
 import { fontErrorMessage, importCustomFont } from '../preview/customFonts';
 import { timerText } from '../preview/timerFormat';
 import { useFittedTimer, useTimerFont } from '../preview/useTimerFont';
@@ -76,7 +77,7 @@ export default function PreviewSettings() {
     edit((previous) => ({ ...previous, appearance: { ...previous.appearance, palettes: { ...previous.appearance.palettes, [name]: colors } } }));
   }
 
-  function changeTimer(update: { font?: TimerFont; customFontId?: string; variant?: TimerStyle; rotation?: TimerVariant[]; language?: TimerLanguage; blat?: boolean }) {
+  function changeTimer(update: { font?: TimerFont; customFontId?: string; variant?: TimerStyle; rotation?: TimerVariant[]; language?: TimerLanguage; blat?: boolean; beebobble?: boolean }) {
     edit((previous) => ({ ...previous, appearance: { ...previous.appearance, timer: resolveAppearance({ timer: { ...previous.appearance.timer, ...update } }).timer } }));
   }
 
@@ -172,14 +173,23 @@ export default function PreviewSettings() {
                 </div>
                 {customFont && <span className={styles.fontName} title={customFont.name}>{customFont.name}</span>}
               </div>
-              <label htmlFor="preview-timer-blat" className={styles.blatField}>
-                <input id="preview-timer-blat" type="checkbox" role="switch" checked={draft.appearance.timer.blat === true} onChange={(event) => changeTimer({ blat: event.target.checked })} />
-                <span>BLAT</span>
-              </label>
+              <div className={styles.overlayOptions}>
+                <label htmlFor="preview-timer-blat" className={styles.blatField}>
+                  <input id="preview-timer-blat" type="checkbox" role="switch" checked={draft.appearance.timer.blat === true} onChange={(event) => changeTimer({ blat: event.target.checked })} />
+                  <span>BLAT</span>
+                </label>
+                <label htmlFor="preview-timer-beebobble" className={styles.blatField}>
+                  <input id="preview-timer-beebobble" type="checkbox" checked={draft.appearance.timer.beebobble === true} onChange={(event) => changeTimer({ beebobble: event.target.checked })} />
+                  <span>BeeBobble</span>
+                </label>
+              </div>
             </div>
-            <div className={styles.sampleFrame}>
-              <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: family, ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}><TimerFace variant={variant.value} ms={sampleMs} scale={0.5} language={language} /></div>
-              {draft.appearance.timer.blat && <BlatOverlay size={15} color={draft.appearance.timer.color} />}
+            <div className={styles.sampleFrame} style={draft.appearance.timer.beebobble ? { paddingBottom: 76 } : undefined}>
+              <div className={styles.sampleFrame}>
+                <div ref={sample} aria-label="Timer preview" className={styles.timerSample} style={{ color: draft.appearance.timer.color, fontFamily: family, ...(draft.appearance.timer.beebobble ? { textAlign: 'center' } : {}), ...(customFamily ? { lineHeight: '45px', minHeight: '45px' } : {}) }}><TimerFace variant={variant.value} ms={sampleMs} scale={0.5} language={language} /></div>
+                {draft.appearance.timer.blat && <BlatOverlay size={15} color={draft.appearance.timer.color} />}
+              </div>
+              {draft.appearance.timer.beebobble && <BeeBobble />}
             </div>
             <span aria-label="Font status" aria-live="polite" className={`${styles.fontStatus} ${uploadError || font.error ? styles.error : styles.status}`}>{importing ? 'Importing font' : uploadError ?? (font.loading ? 'Loading font' : font.error ?? '')}</span>
           </div>
