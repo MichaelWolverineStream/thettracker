@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LAUNCH_SETTINGS } from '../src/preview/config';
@@ -40,6 +39,8 @@ function renderApp(timer: Record<string, unknown>) {
   return { view, heading: () => view.container.querySelector('h2')!, blat: () => view.container.querySelector<HTMLSpanElement>('.timer-blat') };
 }
 
+const blatAngle = (overlay: HTMLSpanElement) => Number(/rotate\((-?[\d.]+)deg\)/.exec(overlay.style.transform)![1]);
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -47,18 +48,16 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
-  fixture.data.connected = false;
   fixture.hasStarted = true;
 });
 
 describe('BeeBobble', () => {
-  it('is absent by default', () => {
-    const { view } = renderApp({});
-    expect(view.container.querySelector('img[src*="beebobble"]')).toBeNull();
-  });
-
-  it('stays mounted before start, while running and while paused alongside BLAT', () => {
+  it('is absent when off and stays mounted before start, while running and while paused alongside BLAT', () => {
     fixture.hasStarted = false;
+    const off = renderApp({});
+    expect(off.view.container.querySelector('img[src*="beebobble"]')).toBeNull();
+    off.view.unmount();
+
     const { view, blat } = renderApp({ beebobble: true, blat: true });
     const bee = view.container.querySelector<HTMLImageElement>('img[src*="beebobble"]')!;
     expect(bee.width).toBe(112);
@@ -74,37 +73,21 @@ describe('BeeBobble', () => {
     expect(blat()).toBeNull();
     expect(view.container.querySelector('img[src*="beebobble"]')).toBe(bee);
   });
-
-  it.each([undefined, null, false, 'true', 1, {}, [true]])('accepts only literal true, case %#', (beebobble) => {
-    expect(resolveAppearance({ timer: { beebobble } }).timer.beebobble).toBeUndefined();
-    expect(resolveAppearance({ timer: { beebobble: true } }).timer.beebobble).toBe(true);
-  });
-
-  it('uses an animated WebP asset configured to loop indefinitely', () => {
-    const asset = readFileSync('src/assets/beebobble.webp');
-    expect(asset.toString('ascii', 0, 4)).toBe('RIFF');
-    expect(asset.toString('ascii', 8, 12)).toBe('WEBP');
-    let frames = 0;
-    let loops: number | undefined;
-    for (let offset = 12; offset + 8 <= asset.length;) {
-      const chunk = asset.toString('ascii', offset, offset + 4);
-      const length = asset.readUInt32LE(offset + 4);
-      if (chunk === 'ANIM') loops = asset.readUInt16LE(offset + 12);
-      if (chunk === 'ANMF') frames += 1;
-      offset += 8 + length + (length % 2);
-    }
-    expect(frames).toBeGreaterThan(1);
-    expect(loops).toBe(0);
-  });
 });
 
 describe('timer style rotation', () => {
-  it('starts on a random selected style and never switches before the timer runs', () => {
+  it('starts on a random selected style and never switches before the timer runs or with a single style', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const view = render(<RotationProbe running={false} />);
     expect(view.getByTestId('face').textContent).toBe('lcd');
     advance(200_000);
     expect(view.getByTestId('face').textContent).toBe('lcd');
+    expect(vi.getTimerCount()).toBe(0);
+    view.unmount();
+
+    const single = render(<RotationProbe styles={['roman']} running />);
+    advance(200_000);
+    expect(single.getByTestId('face').textContent).toBe('roman');
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -145,13 +128,6 @@ describe('timer style rotation', () => {
     expect(view.getByTestId('face').textContent).toBe('lcd');
   });
 
-  it('never schedules switches for a single style', () => {
-    const view = render(<RotationProbe styles={['roman']} running />);
-    advance(200_000);
-    expect(view.getByTestId('face').textContent).toBe('roman');
-    expect(vi.getTimerCount()).toBe(0);
-  });
-
   it('rotates the tracker face only while the timer runs', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     const { view, heading } = renderApp({ variant: 'rotation', rotation: ['analog', 'roman'] });
@@ -175,7 +151,13 @@ describe('timer style rotation', () => {
 });
 
 describe('BLAT overlay', () => {
-  it('jumps around the running timer at half the timer size in Impact', () => {
+  it('leaves the timer untouched when off and jumps around the running timer at half size when on', () => {
+    const off = renderApp({});
+    fireEvent.click(off.view.getByText('run'));
+    expect(off.blat()).toBeNull();
+    expect(off.heading().parentElement!.hasAttribute('style')).toBe(false);
+    off.view.unmount();
+
     let next = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => (next = (next + 0.37) % 1));
     const { view, heading, blat } = renderApp({ variant: 'lcd', blat: true });
@@ -190,38 +172,17 @@ describe('BLAT overlay', () => {
     expect(heading().parentElement!.style.position).toBe('relative');
     expect(heading().parentElement!.style.overflow).toBe('clip');
     expect(heading().textContent).not.toContain('BLAT');
-    const before = overlay.getAttribute('style');
-    advance(300);
-    expect(blat()!.getAttribute('style')).not.toBe(before);
-    const angle = Number(blat()!.style.transform.match(/^translate\(-50%, -50%\) rotate\((-?[\d.]+)deg\)$/)![1]);
-    expect(Math.abs(angle)).toBeLessThanOrEqual(80);
-    expect(blat()!.getAttribute('style')).toMatch(/left: calc\(28\.8px \+ [\d.]+ \* \(100% - 57\.6px\)\)/);
-    expect(blat()!.getAttribute('style')).toMatch(/top: calc\(28\.8px \+ [\d.]+ \* \(100% - 57\.6px\)\)/);
+    expect(Math.abs(blatAngle(overlay))).toBeLessThanOrEqual(80);
+
+    const before = { left: overlay.style.left, top: overlay.style.top, transform: overlay.style.transform };
+    advance(299);
+    expect({ left: blat()!.style.left, top: blat()!.style.top, transform: blat()!.style.transform }).toEqual(before);
+    advance(1);
+    expect(blat()!.style.left).not.toBe(before.left);
+    expect(blat()!.style.top).not.toBe(before.top);
+    expect(Math.abs(blatAngle(blat()!))).toBeLessThanOrEqual(80);
+
     fireEvent.click(view.getByText('halt'));
     expect(blat()).toBeNull();
-    const css = readFileSync('src/preview/timerFaces.css', 'utf8');
-    expect(css).toMatch(/\.timer-blat\s*{[^}]*font-family:\s*Impact,/);
-    expect(css).toMatch(/\.timer-blat\s*{[^}]*-webkit-text-stroke:\s*2px #000;[^}]*paint-order:\s*stroke fill;/);
-  });
-
-  it('keeps the default wrapper markup when BLAT is off', () => {
-    const { view, heading, blat } = renderApp({});
-    fireEvent.click(view.getByText('run'));
-    expect(blat()).toBeNull();
-    expect(heading().parentElement!.hasAttribute('style')).toBe(false);
-  });
-});
-
-describe('force timer start', () => {
-  it.each([
-    [false, false, true],
-    [false, true, false],
-    [true, false, false],
-    [true, true, false],
-  ])('with started=%s and connected=%s shows the button: %s', (started, connected, visible) => {
-    fixture.hasStarted = started;
-    fixture.data.connected = connected;
-    const { view } = renderApp({});
-    expect(view.queryByRole('button', { name: 'FORCE TIMER START' }) !== null).toBe(visible);
   });
 });

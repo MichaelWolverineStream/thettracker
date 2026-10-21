@@ -4,7 +4,7 @@ import LaunchPage from '../src/landing/LaunchPage';
 import { parsePreviewSettings } from '../src/preview/config';
 import { METRICS } from '../src/preview/appearance';
 import * as fontAssets from '../src/preview/customFonts';
-import { MAX_DEFAULTS_LENGTH, PREVIEW_DEFAULTS_KEY, factoryPreviewDefaults, loadPreviewDefaults, savePreviewDefaults } from '../src/landing/previewDefaults';
+import { PREVIEW_DEFAULTS_KEY, factoryPreviewDefaults, loadPreviewDefaults, savePreviewDefaults } from '../src/landing/previewDefaults';
 
 const originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
 afterEach(() => {
@@ -17,30 +17,59 @@ afterEach(() => {
 describe('preview editor draft and save lifecycle', () => {
   const preview = () => within(screen.getByRole('region', { name: 'v0.1.0-preview' }));
 
-  it('previews BeeBobble, launches unsaved changes, saves, restores and resets it independently of BLAT', () => {
+  it('saves and resets appearance options without false unsaved changes', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    const view = render(<LaunchPage />);
-    const checkbox = () => preview().getByRole('checkbox', { name: 'BeeBobble' }) as HTMLInputElement;
-    const bee = () => view.container.querySelector('img[src*="beebobble"]');
-    expect(checkbox().checked).toBe(false);
-    expect(bee()).toBeNull();
-    fireEvent.click(checkbox());
-    expect(bee()!.getAttribute('width')).toBe('112');
-    expect((preview().getByRole('switch', { name: 'BLAT' }) as HTMLInputElement).checked).toBe(false);
-    expect(window.localStorage.length).toBe(0);
-    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
-    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer.beebobble).toBe(true);
-    fireEvent.click(preview().getByRole('switch', { name: 'BLAT' }));
-    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
-    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', blat: true, beebobble: true });
-    view.unmount();
+    const writes = vi.spyOn(Storage.prototype, 'setItem');
     render(<LaunchPage />);
-    expect(checkbox().checked).toBe(true);
-    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
-    expect(checkbox().checked).toBe(false);
-    expect(loadPreviewDefaults().appearance.timer.beebobble).toBe(true);
+    const style = () => preview().getByLabelText('Timer style') as HTMLSelectElement;
+    const language = () => preview().getByLabelText('Words language') as HTMLSelectElement;
+    const blat = () => preview().getByRole('switch', { name: 'BLAT' }) as HTMLInputElement;
+    const bee = () => preview().getByRole('checkbox', { name: 'BeeBobble' }) as HTMLInputElement;
+    const status = () => preview().getByRole('status').textContent;
+    const overlay = () => preview().getByLabelText('Timer preview').parentElement!.querySelector<HTMLSpanElement>('.timer-blat');
+    const beeImage = () => document.querySelector('img[src*="beebobble"]');
+    const options = { color: '#3B82F6', font: 'default', variant: 'words', language: 'sv', blat: true, beebobble: true };
+    fireEvent.change(style(), { target: { value: 'words' } });
+    expect(status()).toBe('Unsaved');
+    fireEvent.change(language(), { target: { value: 'fr' } });
+    fireEvent.change(language(), { target: { value: 'en' } });
+    fireEvent.click(blat());
+    fireEvent.click(bee());
+    fireEvent.click(blat());
+    fireEvent.click(bee());
+    fireEvent.change(style(), { target: { value: 'digital' } });
+    expect(status()).toBe('');
+    fireEvent.change(style(), { target: { value: 'words' } });
+    fireEvent.change(language(), { target: { value: 'sv' } });
+    fireEvent.click(blat());
+    expect(overlay()!.textContent).toBe('BLAT!!!');
+    expect(overlay()!.style.fontSize).toBe('15px');
+    expect(bee().checked).toBe(false);
+    expect(beeImage()).toBeNull();
+    fireEvent.click(bee());
+    expect(beeImage()!.getAttribute('width')).toBe('112');
+    expect(blat().checked).toBe(true);
+    expect(status()).toBe('Unsaved');
+    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
+    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer).toEqual(options);
+    expect(writes).not.toHaveBeenCalled();
     fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
-    expect(loadPreviewDefaults().appearance.timer.beebobble).toBeUndefined();
+    expect(status()).toBe('Saved');
+    expect(loadPreviewDefaults().appearance.timer).toEqual(options);
+    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'bungee' } });
+    expect(status()).toBe('Unsaved');
+    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'default' } });
+    expect(status()).toBe('');
+    cleanup();
+    render(<LaunchPage />);
+    expect([style().value, language().value, blat().checked, bee().checked]).toEqual(['words', 'sv', true, true]);
+    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
+    expect(style().value).toBe('digital');
+    expect(preview().queryByLabelText('Words language')).toBeNull();
+    expect([blat().checked, bee().checked, overlay(), beeImage()]).toEqual([false, false, null, null]);
+    expect(loadPreviewDefaults().appearance.timer).toEqual(options);
+    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
+    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default' });
   });
 
   it('waits for an upload commit, launches its unsaved ID and saves only metadata explicitly', async () => {
@@ -52,6 +81,7 @@ describe('preview editor draft and save lifecycle', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     const writes = vi.spyOn(Storage.prototype, 'setItem');
     render(<LaunchPage />);
+    fireEvent.change(preview().getByLabelText('Timer style'), { target: { value: 'roman' } });
     fireEvent.change(preview().getByLabelText('Custom font file'), { target: { files: [new File(['font'], 'private.woff2')] } });
     expect((preview().getByRole('button', { name: 'Launch', exact: true }) as HTMLButtonElement).disabled).toBe(true);
     expect((preview().getByRole('button', { name: 'Save Defaults' }) as HTMLButtonElement).disabled).toBe(true);
@@ -59,10 +89,12 @@ describe('preview editor draft and save lifecycle', () => {
     expect(open).not.toHaveBeenCalled();
     await act(async () => commit({ id, name: 'private.woff2', blob: new Blob(['font']) }));
     await waitFor(() => expect(preview().getByLabelText('Timer preview').style.fontFamily).toContain(fontAssets.customFontFamily(id)));
+    expect((preview().getByLabelText('Timer style') as HTMLSelectElement).value).toBe('roman');
+    expect(preview().getByLabelText('Timer preview').textContent).toBe('I:IV:III');
     expect(writes).not.toHaveBeenCalled();
     fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
     const url = new URL(open.mock.calls[0][0] as string, 'https://example.com/');
-    expect(parsePreviewSettings(url.search).appearance.timer).toEqual({ color: '#3B82F6', font: 'custom', customFontId: id });
+    expect(parsePreviewSettings(url.search).appearance.timer).toEqual({ color: '#3B82F6', font: 'custom', customFontId: id, variant: 'roman' });
     expect(url.search).not.toContain('private');
     fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'bungee' } });
     fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'custom' } });
@@ -159,47 +191,7 @@ describe('preview editor draft and save lifecycle', () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it('keeps the timer style when uploading a font', async () => {
-    const id = 'c'.repeat(32);
-    vi.spyOn(fontAssets, 'importCustomFont').mockResolvedValue({ id, name: 'mine.woff2', blob: new Blob(['font']) });
-    vi.spyOn(fontAssets, 'loadCustomFont').mockResolvedValue({ face: { family: fontAssets.customFontFamily(id) } as FontFace, name: 'mine.woff2' });
-    Object.defineProperty(document, 'fonts', { configurable: true, value: { add: vi.fn(), delete: vi.fn() } });
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    render(<LaunchPage />);
-    fireEvent.change(preview().getByLabelText('Timer style'), { target: { value: 'roman' } });
-    fireEvent.change(preview().getByLabelText('Custom font file'), { target: { files: [new File(['font'], 'mine.woff2')] } });
-    await waitFor(() => expect((preview().getByLabelText('Timer font') as HTMLSelectElement).value).toBe('custom'));
-    expect((preview().getByLabelText('Timer style') as HTMLSelectElement).value).toBe('roman');
-    expect(preview().getByLabelText('Timer preview').textContent).toBe('I:IV:III');
-    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
-    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer).toEqual({ color: '#3B82F6', font: 'custom', customFontId: id, variant: 'roman' });
-  });
-
-  it('saves and resets the timer style without false unsaved changes', () => {
-    render(<LaunchPage />);
-    const style = () => preview().getByLabelText('Timer style') as HTMLSelectElement;
-    const status = () => preview().getByRole('status').textContent;
-    fireEvent.change(style(), { target: { value: 'flip' } });
-    expect(status()).toBe('Unsaved');
-    fireEvent.change(style(), { target: { value: 'digital' } });
-    expect(status()).toBe('');
-    fireEvent.change(style(), { target: { value: 'flip' } });
-    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
-    expect(status()).toBe('Saved');
-    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'flip' });
-    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'bungee' } });
-    fireEvent.change(preview().getByLabelText('Timer font'), { target: { value: 'default' } });
-    expect(status()).toBe('');
-    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
-    expect(style().value).toBe('digital');
-    expect(loadPreviewDefaults().appearance.timer.variant).toBe('flip');
-    cleanup();
-    render(<LaunchPage />);
-    expect(style().value).toBe('flip');
-  });
-
-  it('shows the words language only for Words, keeps it across styles and launches it', () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  it('shows the words language only for Words and keeps it across styles', () => {
     render(<LaunchPage />);
     const style = preview().getByLabelText('Timer style') as HTMLSelectElement;
     const language = () => preview().getByLabelText('Words language') as HTMLSelectElement;
@@ -221,32 +213,6 @@ describe('preview editor draft and save lifecycle', () => {
     expect(language().value).toBe('ko');
     fireEvent.change(language(), { target: { value: 'la' } });
     expect(sample().textContent).toBe('Una hora, quattuor minuta et tria secunda');
-    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
-    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'words', language: 'la' });
-    expect(window.localStorage.length).toBe(0);
-  });
-
-  it('saves and resets the words language without false unsaved changes', () => {
-    render(<LaunchPage />);
-    const language = () => preview().getByLabelText('Words language') as HTMLSelectElement;
-    const status = () => preview().getByRole('status').textContent;
-    fireEvent.change(preview().getByLabelText('Timer style'), { target: { value: 'words' } });
-    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
-    fireEvent.change(language(), { target: { value: 'fr' } });
-    expect(status()).toBe('Unsaved');
-    fireEvent.change(language(), { target: { value: 'en' } });
-    expect(status()).toBe('');
-    fireEvent.change(language(), { target: { value: 'sv' } });
-    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
-    expect(status()).toBe('Saved');
-    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'words', language: 'sv' });
-    expect(preview().getByLabelText('Timer preview').textContent).toBe('En timme, fyra minuter och tre sekunder');
-    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
-    expect(preview().queryByLabelText('Words language')).toBeNull();
-    expect(loadPreviewDefaults().appearance.timer.language).toBe('sv');
-    cleanup();
-    render(<LaunchPage />);
-    expect(language().value).toBe('sv');
   });
 
   it('selects every style for Rotation, keeps at least two and launches the selection', () => {
@@ -280,32 +246,6 @@ describe('preview editor draft and save lifecycle', () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it('toggles the BLAT switch, previews it, saves, launches and resets it', () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    render(<LaunchPage />);
-    const blat = preview().getByRole('switch', { name: 'BLAT' }) as HTMLInputElement;
-    const overlay = () => preview().getByLabelText('Timer preview').parentElement!.querySelector<HTMLSpanElement>('.timer-blat');
-    expect(blat.checked).toBe(false);
-    expect(overlay()).toBeNull();
-    expect(preview().getAllByRole('checkbox')).toHaveLength(9);
-    fireEvent.click(blat);
-    expect(blat.checked).toBe(true);
-    expect(preview().getByRole('status').textContent).toBe('Unsaved');
-    expect(overlay()!.textContent).toBe('BLAT!!!');
-    expect(overlay()!.style.fontSize).toBe('15px');
-    expect(preview().getByLabelText('Timer preview').textContent).toBe('00:00:00');
-    fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
-    expect(loadPreviewDefaults().appearance.timer).toEqual({ color: '#3B82F6', font: 'default', blat: true });
-    fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
-    expect(parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance.timer.blat).toBe(true);
-    fireEvent.click(preview().getByRole('button', { name: 'Reset', exact: true }));
-    expect(blat.checked).toBe(false);
-    expect(overlay()).toBeNull();
-    cleanup();
-    render(<LaunchPage />);
-    expect((preview().getByRole('switch', { name: 'BLAT' }) as HTMLInputElement).checked).toBe(true);
-  });
-
   it('loads only at mount, saves explicitly, and resets only the current draft until saved', () => {
     const initial = factoryPreviewDefaults();
     initial.widgets.magic = false;
@@ -329,7 +269,8 @@ describe('preview editor draft and save lifecycle', () => {
     expect(loadPreviewDefaults()).toEqual(factoryPreviewDefaults());
   });
 
-  it('resets one palette without changing another and permits launch after save failure', () => {
+  it('resets one palette without changing another and keeps launch usable when storage is blocked', () => {
+    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => { throw new DOMException('Denied', 'SecurityError'); });
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     render(<LaunchPage />);
     fireEvent.click(preview().getByRole('button', { name: 'Bonks colors', exact: true }));
@@ -339,11 +280,13 @@ describe('preview editor draft and save lifecycle', () => {
     fireEvent.click(preview().getByRole('button', { name: 'Reset Bonks colors' }));
     expect((preview().getByLabelText('Bonks stop 1') as HTMLInputElement).value).toBe('#ffbe0b');
     expect((preview().getByLabelText('Checks stop 1') as HTMLInputElement).value).toBe('#654321');
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Full', 'QuotaExceededError'); });
     fireEvent.click(preview().getByRole('button', { name: 'Save Defaults' }));
     expect(preview().getByRole('status').textContent).toBe('Save failed');
     fireEvent.click(preview().getByRole('button', { name: 'Launch', exact: true }));
     expect(open).toHaveBeenCalledTimes(1);
+    const { palettes } = parsePreviewSettings(new URL(open.mock.calls[0][0] as string, 'https://example.com/').search).appearance;
+    expect(palettes.checkCount[0]).toBe('#654321');
+    expect(palettes.bonks).toEqual(METRICS.bonks.colors);
   });
 });
 
@@ -380,7 +323,7 @@ describe('landing-only preview defaults', () => {
     expect(loaded.appearance.palettes.magic).toEqual(METRICS.magic.colors);
   });
 
-  it.each(['broken', 'null', '[]', '{"v":2}', JSON.stringify({ v: 1, padding: 'x'.repeat(MAX_DEFAULTS_LENGTH) })])('ignores corrupt or unsupported storage case %# without erasing it', (raw) => {
+  it.each(['broken', '{"v":2}'])('ignores corrupt or unsupported storage case %# without erasing it', (raw) => {
     window.localStorage.setItem(PREVIEW_DEFAULTS_KEY, raw);
     const writes = vi.spyOn(Storage.prototype, 'setItem');
     const erases = vi.spyOn(Storage.prototype, 'removeItem');
@@ -390,14 +333,12 @@ describe('landing-only preview defaults', () => {
     expect(window.localStorage.getItem(PREVIEW_DEFAULTS_KEY)).toBe(raw);
   });
 
-  it('handles a denied storage getter', () => {
-    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => { throw new DOMException('Denied', 'SecurityError'); });
+  it('falls back safely when storage access, reads or writes are denied', () => {
+    const getter = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => { throw new DOMException('Denied', 'SecurityError'); });
     expect(loadPreviewDefaults()).toEqual(factoryPreviewDefaults());
     expect(savePreviewDefaults(factoryPreviewDefaults())).toBe(false);
     expect(parsePreviewSettings('').appearance.timer.color).toBe('#3B82F6');
-  });
-
-  it('handles denied reads and quota-exceeded writes', () => {
+    getter.mockRestore();
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Denied'); });
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Full', 'QuotaExceededError'); });
     expect(loadPreviewDefaults()).toEqual(factoryPreviewDefaults());

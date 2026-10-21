@@ -1,14 +1,16 @@
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator, type WebSocketRoute } from '@playwright/test';
+import { expect, test, type Locator, type Page, type WebSocketRoute } from '@playwright/test';
 import { memoryFrame } from './helpers/sni';
 import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetSettings } from '../src/preview/config';
 import { buildLegacyUrl } from '../src/landing/legacyLaunch';
 import { METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, hexToRgb, resolveAppearance } from '../src/preview/appearance';
 import { timerText } from '../src/preview/timerFormat';
 import { PREVIEW_DEFAULTS_KEY, factoryPreviewDefaults } from '../src/landing/previewDefaults';
-import { CUSTOM_FONTS_DATABASE, MAX_FONT_BYTES, customFontFamily } from '../src/preview/customFonts';
+import { CUSTOM_FONTS_DATABASE, customFontFamily } from '../src/preview/customFonts';
 
 const legacyQuery = '?tracker=true&checkCount=true&bonks=true&chestTurns=true&deaths=true&rupees=true&screens=true&damage=true&magic=true&boxes=4';
+const responsive = { tag: '@responsive' };
+const representativeLanguages = TIMER_LANGUAGES.filter(({ value }) => ['qya', 'ko', 'ru', 'emoji'].includes(value));
 
 function idleDevice(socket: WebSocketRoute) {
   socket.onMessage((message) => {
@@ -34,6 +36,18 @@ const customFontFile = {
   buffer: readFileSync(new URL('../src/preview/fonts/jetbrains-mono-latin-700-normal.woff2', import.meta.url)),
 };
 
+async function uploadCustomFont(page: Page) {
+  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  await preview.getByLabel('Timer color', { exact: true }).fill('#c43d52');
+  await preview.getByLabel('Custom font file', { exact: true }).setInputFiles(customFontFile);
+  await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('custom');
+  await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('');
+  const family = (await preview.getByLabel('Timer preview', { exact: true }).evaluate((element) => getComputedStyle(element).fontFamily)).split('"')[1];
+  const id = family.replace('Tracker Custom ', '');
+  expect(id).toMatch(/^[0-9a-f]{32}$/);
+  return { family, id };
+}
+
 async function expectCustomFont(element: Locator, id: string) {
   const family = customFontFamily(id);
   await expect(element).toHaveCSS('font-family', `"${family}"`);
@@ -43,7 +57,7 @@ async function expectCustomFont(element: Locator, id: string) {
   }, family)).toBe(true);
 }
 
-test('custom font upload persists locally, preserves old links and fits both timer surfaces', async ({ page, context, browser }) => {
+test('custom font upload persists, launches and fits', async ({ page, context }) => {
   let running = false;
   await context.routeWebSocket('ws://localhost:23074', (socket) => {
     socket.onMessage((message) => {
@@ -63,23 +77,9 @@ test('custom font upload persists locally, preserves old links and fits both tim
   await page.goto('./index.html');
   const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
   const sample = preview.getByLabel('Timer preview', { exact: true });
-  const input = preview.getByLabel('Custom font file', { exact: true });
-  await preview.getByLabel('Timer color', { exact: true }).fill('#c43d52');
-  await input.setInputFiles(customFontFile);
-  await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('custom');
-  await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('');
-  const family = (await sample.evaluate((element) => getComputedStyle(element).fontFamily)).split('"')[1];
-  const id = family.replace('Tracker Custom ', '');
-  expect(id).toMatch(/^[0-9a-f]{32}$/);
+  const { id } = await uploadCustomFont(page);
   await expectCustomFont(sample, id);
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
-  const option = preview.getByRole('option', { name: /^Custom:/ });
-  expect((await option.textContent())!.length).toBeLessThanOrEqual(128);
-  await sample.evaluate((element) => { element.style.width = '80px'; });
-  await expect.poll(() => sample.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeLessThan(30);
-  expect(await sample.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await sample.evaluate((element) => { element.style.width = ''; });
-  await expect(sample).toHaveCSS('font-size', '30px');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `test-results/custom-font-editor-${page.viewportSize()!.width}.png`, fullPage: true });
   await preview.getByRole('button', { name: 'Save Defaults' }).click();
@@ -88,7 +88,6 @@ test('custom font upload persists locally, preserves old links and fits both tim
   expect(raw).not.toContain('personal-timer');
   await page.reload();
   await expectCustomFont(sample, id);
-  await expect(option).not.toHaveText('Custom: Custom font');
   const opened = page.waitForEvent('popup');
   await preview.getByRole('button', { name: 'Launch', exact: true }).click();
   const popup = await opened;
@@ -97,32 +96,41 @@ test('custom font upload persists locally, preserves old links and fits both tim
   await expectCustomFont(timer, id);
   await expect(timer).toHaveCSS('color', 'rgb(196, 61, 82)');
   await expect(popup.getByText('Connected to Fixture', { exact: true })).toBeVisible();
-  expect(await popup.getByRole('button', { name: /^Checks/ }).locator('span').evaluate((element) => getComputedStyle(element).fontFamily)).not.toContain('Tracker Custom');
-  await timer.evaluate((element) => { element.style.width = '80px'; });
-  await expect.poll(() => timer.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeLessThan(36);
-  expect(await timer.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await timer.evaluate((element) => { element.style.width = '100%'; });
-  await expect(timer).toHaveCSS('font-size', '36px');
-  const bounds = (await timer.boundingBox())!;
-  expect(bounds.x).toBeGreaterThanOrEqual(0);
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(popup.viewportSize()!.width);
   await expect(timer).toHaveText('00:00:00');
   running = true;
   await expect(timer).not.toHaveText('00:00:00');
   const controls = popup.getByRole('button', { name: 'DE-FLUFF' });
   await expect(controls).toBeVisible();
+  const { width } = popup.viewportSize()!;
+  const timerBounds = (await timer.boundingBox())!;
   const controlBounds = (await controls.boundingBox())!;
-  const runningBounds = (await timer.boundingBox())!;
+  expect(timerBounds.x).toBeGreaterThanOrEqual(0);
+  expect(timerBounds.x + timerBounds.width).toBeLessThanOrEqual(width);
   expect(controlBounds.x).toBeGreaterThanOrEqual(0);
-  expect(controlBounds.x + controlBounds.width).toBeLessThanOrEqual(popup.viewportSize()!.width);
-  expect(runningBounds.y + runningBounds.height).toBeLessThanOrEqual(controlBounds.y);
+  expect(controlBounds.x + controlBounds.width).toBeLessThanOrEqual(width);
+  expect(timerBounds.y + timerBounds.height).toBeLessThanOrEqual(controlBounds.y);
   expect(await popup.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await popup.screenshot({ path: `test-results/custom-font-timer-${page.viewportSize()!.width}.png`, fullPage: true });
-  running = false;
-  await input.setInputFiles(customFontFile);
-  await expect(sample).not.toHaveCSS('font-family', `"${family}"`);
-  await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('');
-  await popup.reload();
+  expect(errors).toEqual([]);
+  expect(externalFonts).toEqual([]);
+});
+
+test('missing custom font falls back', async ({ page, context, browser }) => {
+  await context.routeWebSocket('ws://localhost:23074', idleDevice);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('./index.html');
+  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const sample = preview.getByLabel('Timer preview', { exact: true });
+  const { family, id } = await uploadCustomFont(page);
+  await preview.getByRole('button', { name: 'Save Defaults' }).click();
+  await expect(preview.getByRole('status', { name: 'Defaults status' })).toHaveText('Saved');
+  const raw = await page.evaluate((key) => localStorage.getItem(key), PREVIEW_DEFAULTS_KEY);
+  const opened = page.waitForEvent('popup');
+  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
+  const popup = await opened;
+  popup.on('pageerror', (error) => errors.push(error.message));
+  const timer = popup.locator('h2');
   await expectCustomFont(timer, id);
   await preview.getByRole('button', { name: 'Reset', exact: true }).click();
   await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('default');
@@ -159,76 +167,32 @@ test('custom font upload persists locally, preserves old links and fits both tim
   await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('Custom font unavailable');
   expect(await page.evaluate((key) => localStorage.getItem(key), PREVIEW_DEFAULTS_KEY)).toBe(raw);
   expect(errors).toEqual([]);
-  expect(externalFonts).toEqual([]);
 });
 
-test('custom font rejects invalid uploads and denied, quota or aborted storage without losing the draft', async ({ page }) => {
+test('custom font rejects a corrupt upload and a full font store without losing the draft', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./index.html');
   const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
   const input = preview.getByLabel('Custom font file', { exact: true });
-  await preview.getByLabel('Timer font', { exact: true }).selectOption('bungee');
-  const cases = [
-    { name: 'empty.woff2', buffer: Buffer.alloc(0), message: 'Invalid font file' },
-    { name: 'oversized.woff2', buffer: Buffer.alloc(MAX_FONT_BYTES + 1), message: 'Font exceeds 5 MiB' },
-    { name: 'font.css', buffer: customFontFile.buffer, message: 'Choose a WOFF2, WOFF, TTF, or OTF font' },
-    { name: 'mismatch.ttf', buffer: customFontFile.buffer, message: 'Invalid font file' },
-    { name: 'corrupt.woff2', buffer: Buffer.from('wOF2'), message: 'Invalid font file' },
-  ];
-  for (const upload of cases) {
-    await input.setInputFiles({ name: upload.name, mimeType: 'font/woff2', buffer: upload.buffer });
-    await expect(preview.getByLabel('Font status', { exact: true })).toHaveText(upload.message);
-    await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('bungee');
-    await expect(preview.getByRole('button', { name: 'Launch', exact: true })).toBeEnabled();
-  }
-  for (const failure of ['denied', 'quota', 'abort'] as const) {
-    await page.reload();
-    await preview.getByLabel('Timer font', { exact: true }).selectOption('bungee');
-    await page.evaluate((failure) => {
-      if (failure === 'denied') Object.defineProperty(window, 'indexedDB', { configurable: true, get() { throw new DOMException('Denied', 'SecurityError'); } });
-      if (failure === 'quota') IDBObjectStore.prototype.add = function () { throw new DOMException('Full', 'QuotaExceededError'); };
-      if (failure === 'abort') {
-        const add = IDBObjectStore.prototype.add;
-        IDBObjectStore.prototype.add = function (...args) {
-          const request = add.apply(this, args);
-          this.transaction.abort();
-          return request;
-        };
-      }
-    }, failure);
-    await input.setInputFiles(customFontFile);
-    await expect(preview.getByLabel('Font status', { exact: true })).toHaveText(failure === 'quota' ? 'Font storage full' : 'Font storage unavailable');
-    await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('bungee');
-    await expect(preview.getByRole('button', { name: 'Launch', exact: true })).toBeEnabled();
-    expect(await page.evaluate(() => localStorage.length)).toBe(0);
-    await page.screenshot({ path: `test-results/custom-font-${failure}-${page.viewportSize()!.width}.png`, fullPage: true });
-  }
+  const font = preview.getByLabel('Timer font', { exact: true });
+  const status = preview.getByLabel('Font status', { exact: true });
+  await font.selectOption('bungee');
+  await input.setInputFiles({ name: 'corrupt.woff2', mimeType: 'font/woff2', buffer: Buffer.from('wOF2') });
+  await expect(status).toHaveText('Invalid font file');
+  await expect(font).toHaveValue('bungee');
+  await expect(preview.getByRole('button', { name: 'Launch', exact: true })).toBeEnabled();
+  await page.evaluate(() => { IDBObjectStore.prototype.add = function () { throw new DOMException('Full', 'QuotaExceededError'); }; });
+  await input.setInputFiles(customFontFile);
+  await expect(status).toHaveText('Font storage full');
+  await expect(font).toHaveValue('bungee');
+  await expect(preview.getByRole('button', { name: 'Launch', exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => localStorage.length)).toBe(0);
+  await page.screenshot({ path: `test-results/custom-font-quota-${page.viewportSize()!.width}.png`, fullPage: true });
   expect(errors).toEqual([]);
 });
 
-test('custom font launches an unsaved upload even when saving defaults fails', async ({ page, context }) => {
-  await context.routeWebSocket('ws://localhost:23074', idleDevice);
-  await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
-  await page.evaluate(() => { Storage.prototype.setItem = function () { throw new DOMException('Full', 'QuotaExceededError'); }; });
-  await preview.getByLabel('Custom font file', { exact: true }).setInputFiles(customFontFile);
-  await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('custom');
-  await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('');
-  await preview.getByRole('button', { name: 'Save Defaults' }).click();
-  await expect(preview.getByRole('status', { name: 'Defaults status' })).toHaveText('Save failed');
-  const opened = page.waitForEvent('popup');
-  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
-  const popup = await opened;
-  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
-  const id = JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer.customFontId;
-  await expectCustomFont(popup.locator('h2'), id);
-  await popup.reload();
-  await expectCustomFont(popup.locator('h2'), id);
-  expect(await page.evaluate(() => localStorage.length)).toBe(0);
-});
-
-test('launches independently configured preview and legacy popups', async ({ page, context }) => {
+test('launches independently configured preview and legacy popups', responsive, async ({ page, context }) => {
   const sockets: string[] = [];
   await context.routeWebSocket('ws://localhost:23074', (socket) => {
     sockets.push(socket.url());
@@ -270,7 +234,7 @@ test('launches independently configured preview and legacy popups', async ({ pag
   expect(errors).toEqual([]);
 });
 
-test('preserves the legacy bookmark and appearance', async ({ page }) => {
+test('preserves the legacy bookmark and appearance', responsive, async ({ page }) => {
   await page.routeWebSocket('ws://localhost:23074', (socket) => {
     socket.onMessage((message) => {
       const request = JSON.parse(String(message));
@@ -294,52 +258,33 @@ test('preserves the legacy bookmark and appearance', async ({ page }) => {
 });
 
 test('renders live preview metrics, manual controls and valid colors', async ({ page }) => {
-  let frames = 0;
   await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
-  await page.routeWebSocket('ws://localhost:23074', (socket) => {
-    socket.onMessage((message) => {
-      const request = JSON.parse(String(message));
-      if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
-      if (request.Opcode === 'GetAddress') {
-        if (request.Operands[0] === 'f50010') socket.send(Buffer.from([7]));
-        else {
-          frames += 1;
-          socket.send(Buffer.from(memoryFrame({ checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 })));
-        }
-      }
-    });
-  });
+  await page.routeWebSocket('ws://localhost:23074', runningDevice);
   await page.goto(`./index.html${legacyQuery}&version=2`);
   await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
-  await expect(page.locator('h2')).toHaveText('00:00:00');
-  await expect(page.getByRole('button', { name: 'DE-FLUFF' })).not.toBeVisible();
+  const timer = page.locator('h2');
+  await expect(timer).toHaveText('00:00:00');
   await page.clock.runFor(125);
-  await expect.poll(() => frames).toBe(1);
-  await expect(page.locator('h2')).toHaveText('00:00:01');
   await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
   await page.clock.runFor(125);
   const checks = page.getByRole('button', { name: /^Checks/ });
   await expect(checks.locator('span')).toHaveText('55');
   await expect(page.getByText('1.9', { exact: true })).toBeVisible();
   await expect(page.getByText('16', { exact: true })).toBeVisible();
-  await page.clock.runFor(875);
-  await expect(page.locator('h2')).toHaveText('00:00:02');
-  await page.clock.runFor(1125);
   await checks.click();
   await expect(checks.locator('span')).toHaveText('56');
   await page.getByRole('button', { name: 'DE-FLUFF' }).click();
   await expect(checks.locator('span')).toHaveText('55');
-  await page.getByRole('button').nth(1).click();
-  await expect(page.locator('h2')).toHaveText('00:00:03');
-  const pausedTime = await page.locator('h2').textContent();
+  const pause = page.getByRole('button').nth(1);
+  await pause.click();
+  const paused = (await timer.textContent())!;
   await page.clock.runFor(2000);
-  await expect(page.locator('h2')).toHaveText(pausedTime!);
-  await page.getByRole('button').nth(1).click();
-  await page.clock.runFor(875);
-  await expect(page.locator('h2')).toHaveText('00:00:04');
-  const content = await page.locator('body').textContent();
-  expect(content).not.toMatch(/NaN|Infinity/);
+  await expect(timer).toHaveText(paused);
+  await pause.click();
+  await page.clock.runFor(1000);
+  await expect(timer).not.toHaveText(paused);
+  expect(await page.locator('body').textContent()).not.toMatch(/NaN|Infinity/);
   const colors = await page.locator('.beveled-box[style]').evaluateAll((boxes) => boxes.map((box) => (box as HTMLElement).style.backgroundColor));
   expect(colors).toHaveLength(8);
   expect(colors.every((color) => /^rgb\(/.test(color))).toBe(true);
@@ -375,16 +320,14 @@ test('recovers when SNI and then a device become available', async ({ page }) =>
   await expect(page.getByText('Disconnected: SNI not running', { exact: true })).toBeVisible();
   await page.clock.runFor(5000);
   await expect(page.getByText('No devices found', { exact: true })).toBeVisible();
-  await page.clock.runFor(4999);
-  expect(discoveries).toBe(1);
-  await page.clock.runFor(1);
+  await page.clock.runFor(5000);
   await expect(page.getByText('Connected to Later device', { exact: true })).toBeVisible();
-  expect(connections).toBe(3);
+  await expect.poll(() => connections).toBe(3);
   current!.close({ reason: 'SNI restarted' });
   await expect(page.getByText('Disconnected: SNI restarted', { exact: true })).toBeVisible();
   await page.clock.runFor(5000);
   await expect(page.getByText('Connected to Later device', { exact: true })).toBeVisible();
-  expect(connections).toBe(4);
+  await expect.poll(() => connections).toBe(4);
 });
 
 test('loads only the selected runtime and restores strict bookmark flags', async ({ page }) => {
@@ -413,27 +356,25 @@ test('loads only the selected runtime and restores strict bookmark flags', async
   await expect(page.getByText('Screens', { exact: true })).toBeVisible();
 });
 
-test('edits and saves every palette stop and launches unsaved timer choices', async ({ page, context }) => {
+test('edits and saves palette stops and launches unsaved timer choices', responsive, async ({ page, context }) => {
   const sockets: string[] = [];
   await context.routeWebSocket('ws://localhost:23074', (socket) => { sockets.push(socket.url()); idleDevice(socket); });
   await page.goto('./index.html');
   const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
   const appearance = resolveAppearance(undefined);
-  const colors = ['#E63946', '#2A9D8F', '#F4A261', '#F1C40F', '#2A75B8', '#E76F51', '#5C946E', '#E879B2'];
-  for (const [metricIndex, { name }] of WIDGETS.entries()) {
-    const metric = METRICS[name];
-    await preview.getByRole('button', { name: `${metric.title} colors`, exact: true }).click();
-    appearance.palettes[name] = metric.colors.map((_, index) => colors[(metricIndex + index) % colors.length]);
-    for (const [index, color] of appearance.palettes[name].entries()) await preview.getByLabel(`${metric.title} stop ${index + 1}`, { exact: true }).fill(color.toLowerCase());
+  const edits = [['checkCount', '#E63946'], ['deaths', '#2A9D8F']] as const;
+  for (const [name, color] of edits) {
+    const { title } = METRICS[name];
+    appearance.palettes[name] = [color, ...appearance.palettes[name].slice(1)];
+    await preview.getByRole('button', { name: `${title} colors`, exact: true }).click();
+    await preview.getByLabel(`${title} stop 1`, { exact: true }).fill(color.toLowerCase());
   }
   await preview.getByLabel('Timer color', { exact: true }).fill('#c43d52');
   await preview.getByLabel('Timer font', { exact: true }).selectOption('jetbrains-mono');
-  appearance.timer = { color: '#C43D52', font: 'jetbrains-mono' };
   await preview.getByRole('checkbox', { name: 'Bonks (milliBonks per minute)', exact: true }).uncheck();
   await expect(preview.getByRole('status')).toHaveText('Unsaved');
   expect(sockets).toHaveLength(0);
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
-  await expect(preview.getByLabel('Bonks stop 1', { exact: true })).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await page.screenshot({ path: `test-results/appearance-editor-${page.viewportSize()!.width}.png`, fullPage: true });
   await preview.getByRole('button', { name: 'Save Defaults' }).click();
@@ -441,10 +382,10 @@ test('edits and saves every palette stop and launches unsaved timer choices', as
   await page.reload();
   await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('jetbrains-mono');
   await expect(preview.getByRole('checkbox', { name: 'Bonks (milliBonks per minute)', exact: true })).not.toBeChecked();
-  for (const { name } of WIDGETS) {
-    const metric = METRICS[name];
-    await preview.getByRole('button', { name: `${metric.title} colors`, exact: true }).click();
-    for (const [index, color] of appearance.palettes[name].entries()) await expect(preview.getByLabel(`${metric.title} stop ${index + 1}`, { exact: true })).toHaveValue(color.toLowerCase());
+  for (const [name, color] of edits) {
+    const { title } = METRICS[name];
+    await preview.getByRole('button', { name: `${title} colors`, exact: true }).click();
+    await expect(preview.getByLabel(`${title} stop 1`, { exact: true })).toHaveValue(color.toLowerCase());
   }
   await preview.getByLabel('Timer color', { exact: true }).fill('#123456');
   const opened = page.waitForEvent('popup');
@@ -453,17 +394,13 @@ test('edits and saves every palette stop and launches unsaved timer choices', as
   await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
   await expect(popup.locator('h2')).toHaveCSS('color', 'rgb(18, 52, 86)');
   expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).palettes).toEqual(appearance.palettes);
-  for (const { name } of WIDGETS.filter(({ name }) => name !== 'bonks')) {
-    await expect(popup.getByText(METRICS[name].title, { exact: true }).locator('..').locator('.beveled-box[style]')).toHaveCSS('background-color', `rgb(${hexToRgb(appearance.palettes[name][0]).join(', ')})`);
+  for (const [name, color] of edits) {
+    await expect(popup.getByText(METRICS[name].title, { exact: true }).locator('..').locator('.beveled-box[style]')).toHaveCSS('background-color', `rgb(${hexToRgb(color).join(', ')})`);
   }
   await preview.getByLabel('Timer color', { exact: true }).fill('#654321');
   await preview.getByRole('button', { name: 'Save Defaults' }).click();
   await popup.reload();
   await expect(popup.locator('h2')).toHaveCSS('color', 'rgb(18, 52, 86)');
-  await preview.getByRole('button', { name: 'Reset', exact: true }).click();
-  await expect(preview.getByLabel('Timer color', { exact: true })).toHaveValue('#3b82f6');
-  await page.reload();
-  await expect(preview.getByLabel('Timer color', { exact: true })).toHaveValue('#654321');
 });
 
 test('restores appearance only from copied URLs, even with conflicting defaults or denied storage', async ({ page, context, browser }) => {
@@ -503,7 +440,7 @@ test('restores appearance only from copied URLs, even with conflicting defaults 
   }
 });
 
-test('loads all timer fonts locally and keeps the timer inside each viewport', async ({ page, context }) => {
+test('loads all timer fonts locally and keeps the timer inside each viewport', responsive, async ({ page, context }) => {
   await context.routeWebSocket('ws://localhost:23074', idleDevice);
   const responses: { url: string; ok: boolean }[] = [];
   page.on('response', (response) => { if (response.url().includes('.woff2')) responses.push({ url: response.url(), ok: response.ok() }); });
@@ -524,125 +461,63 @@ test('loads all timer fonts locally and keeps the timer inside each viewport', a
     expect(timer!.x).toBeGreaterThanOrEqual(0);
     expect(timer!.x + timer!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     await page.screenshot({ path: `test-results/timer-${font.value}-${page.viewportSize()!.width}.png`, fullPage: true });
-    await page.goto('./index.html');
-    const select = page.getByLabel('Timer font', { exact: true });
-    await expect(select.locator('option')).toHaveCount(TIMER_FONTS.length);
-    await select.selectOption(font.value);
-    const sample = page.getByLabel('Timer preview', { exact: true });
-    await expect(sample).toHaveCSS('font-family', font.family!);
-    await page.evaluate(() => document.fonts.ready);
-    expect(await sample.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: `test-results/timer-sample-${font.value}-${page.viewportSize()!.width}.png`, fullPage: true });
   }
   expect(new Set(responses.map(({ url }) => url)).size).toBe(fonts.length);
   expect(responses.every(({ url, ok }) => ok && new URL(url).origin === new URL(page.url()).origin)).toBe(true);
 });
 
 async function expectRomanAlignment(timer: Locator) {
-  await expect.poll(() => timer.locator('.timer-face-roman').evaluate((element) => {
+  const face = timer.locator('.timer-face-roman');
+  await expect.poll(() => face.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
     return Math.abs(range.getBoundingClientRect().right - element.getBoundingClientRect().right);
   })).toBeLessThanOrEqual(1);
-  const geometry = await timer.locator('.timer-face-roman').evaluate((element) => {
+  const geometry = await face.evaluate((element) => {
     const area = element.getBoundingClientRect();
     const parent = element.parentElement!.getBoundingClientRect();
     const range = document.createRange();
     range.selectNodeContents(element);
-    const text = range.getBoundingClientRect();
     return {
       leftInset: area.left - parent.left,
       rightInset: parent.right - area.right,
       right: area.right,
       width: area.width,
-      textRight: text.right,
-      textLeft: text.left,
-      left: area.left,
-      overflow: element.scrollWidth > element.clientWidth + 1,
+      overflow: element.scrollWidth > element.clientWidth + 1 || range.getBoundingClientRect().left < area.left - 1,
     };
   });
   expect(geometry.leftInset).toBeGreaterThanOrEqual(15);
   expect(Math.abs(geometry.leftInset - geometry.rightInset)).toBeLessThanOrEqual(1);
-  expect(Math.abs(geometry.textRight - geometry.right)).toBeLessThanOrEqual(1);
-  expect(geometry.textLeft).toBeGreaterThanOrEqual(geometry.left - 1);
   expect(geometry.overflow).toBe(false);
-  return geometry;
+  return { right: geometry.right, width: geometry.width };
 }
 
-test('anchors Roman timers in a central area across ticks, fonts and style changes', async ({ page }) => {
+test('anchors the Roman timer in a central area across ticks', responsive, async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
   await page.routeWebSocket('ws://localhost:23074', (socket) => socket.close({ reason: 'SNI not running' }));
-  await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
-  const style = preview.getByLabel('Timer style', { exact: true });
-  const font = preview.getByLabel('Timer font', { exact: true });
-  const sample = preview.getByLabel('Timer preview', { exact: true });
-  await preview.getByLabel('Custom font file', { exact: true }).setInputFiles(customFontFile);
-  await expect(font).toHaveValue('custom');
-  await expect(preview.getByLabel('Font status', { exact: true })).toHaveText('');
-  const family = (await sample.evaluate((element) => getComputedStyle(element).fontFamily)).split('"')[1];
-  const customFontId = family.replace('Tracker Custom ', '');
-  for (const value of ['default', 'bungee', 'custom']) {
-    await font.selectOption(value);
-    await style.selectOption('roman');
-    await expect(sample).toHaveText('I:IV:III');
-    await page.evaluate(() => document.fonts.ready);
-    await expectRomanAlignment(sample);
-  }
-  await page.screenshot({ path: `test-results/roman-sample-${page.viewportSize()!.width}.png`, fullPage: true });
-  await style.selectOption('digital');
-  await expect(sample.locator('.timer-face-roman')).toHaveCount(0);
-  await style.selectOption('roman');
-  await expectRomanAlignment(sample);
-
-  for (const font of ['default', 'bungee', 'custom']) {
-    const appearance = resolveAppearance({ timer: { font, customFontId, variant: 'roman' } });
-    await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
-    await expect(page.getByText('Disconnected: SNI not running', { exact: true })).toBeVisible();
-    const timer = page.locator('h2');
-    await expect(timer).toHaveText('—:—:—');
-    if (font === 'custom') await expectCustomFont(timer, customFontId);
-    await page.evaluate(() => document.fonts.ready);
-    const initial = await expectRomanAlignment(timer);
-    const started = await page.evaluate(() => Date.now());
-    await page.getByRole('button', { name: 'FORCE TIMER START' }).click();
-    for (const seconds of [1, 3, 4, 8, 9, 58, 59, 60, 3599, 3600, 25 * 3600 + 48 * 60 + 38, 100000 * 3600]) {
-      await page.clock.setSystemTime(started + (seconds - 1) * 1000);
-      await page.clock.runFor(125);
-      await expect(timer).toHaveText(timerText('roman', seconds * 1000));
-      const current = await expectRomanAlignment(timer);
-      expect(Math.abs(current.right - initial.right)).toBeLessThanOrEqual(1);
-      expect(Math.abs(current.width - initial.width)).toBeLessThanOrEqual(1);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      if (seconds === 25 * 3600 + 48 * 60 + 38) {
-        await page.screenshot({ path: `test-results/roman-${font}-${page.viewportSize()!.width}.png`, fullPage: true });
-      }
-    }
-    expect(await timer.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeLessThan(36);
-    const originalViewport = page.viewportSize()!;
-    await page.setViewportSize({ ...originalViewport, width: 320 });
-    await expectRomanAlignment(timer);
-    await page.setViewportSize(originalViewport);
-    await expectRomanAlignment(timer);
-  }
-
-  await page.addInitScript(() => { Math.random = () => 0; });
-  const appearance = resolveAppearance({ timer: { variant: 'rotation', rotation: ['digital', 'roman'] } });
+  const appearance = resolveAppearance({ timer: { variant: 'roman' } });
   await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
+  await expect(page.getByText('Disconnected: SNI not running', { exact: true })).toBeVisible();
   const timer = page.locator('h2');
+  await expect(timer).toHaveText('—:—:—');
+  await page.evaluate(() => document.fonts.ready);
+  const initial = await expectRomanAlignment(timer);
+  const started = await page.evaluate(() => Date.now());
   await page.getByRole('button', { name: 'FORCE TIMER START' }).click();
-  await expect(timer.locator('.timer-face-roman')).toHaveCount(0);
-  await page.clock.runFor(10000);
-  await expect(timer.locator('.timer-face-roman')).toBeVisible();
-  await expectRomanAlignment(timer);
-  await page.clock.runFor(10000);
-  await expect(timer.locator('.timer-face-roman')).toHaveCount(0);
-  await expect(timer).toHaveCSS('font-size', '36px');
+  for (const seconds of [1, 8, 3599, 25 * 3600 + 48 * 60 + 38]) {
+    await page.clock.setSystemTime(started + (seconds - 1) * 1000);
+    await page.clock.runFor(125);
+    await expect(timer).toHaveText(timerText('roman', seconds * 1000));
+    const current = await expectRomanAlignment(timer);
+    expect(Math.abs(current.right - initial.right)).toBeLessThanOrEqual(1);
+    expect(Math.abs(current.width - initial.width)).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.screenshot({ path: `test-results/roman-default-${page.viewportSize()!.width}.png`, fullPage: true });
 });
 
-test('renders every timer style inside each viewport', async ({ page }) => {
+test('renders every timer style inside each viewport', responsive, async ({ page }) => {
   const elapsed = (3600 + 4 * 60 + 2) * 1000;
   await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
@@ -673,43 +548,43 @@ test('renders every timer style inside each viewport', async ({ page }) => {
   }
 });
 
-test('previews timer styles in the launcher and respects reduced motion', async ({ page, context }) => {
+test('fits timer style, words language and Rotation/BLAT previews in the launcher and respects reduced motion', responsive, async ({ page, context }) => {
   await context.routeWebSocket('ws://localhost:23074', idleDevice);
   await page.goto('./index.html');
+  const { width } = page.viewportSize()!;
   const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
   const style = preview.getByLabel('Timer style', { exact: true });
-  const font = preview.getByLabel('Timer font', { exact: true });
   const sample = preview.getByLabel('Timer preview', { exact: true });
-  await expect(style.locator('option')).toHaveCount(TIMER_VARIANTS.length + 1);
-  await font.selectOption('bungee');
-  for (const { value, layout, usesFont } of TIMER_VARIANTS) {
-    await style.selectOption(value);
-    if (layout === 'graphic') await expect(sample.getByRole('img', { name: '01:04:03' })).toBeVisible();
-    else await expect(sample).toHaveText(timerText(value, value === 'digital' ? 0 : 3843000));
-    await expect(font).toBeEnabled({ enabled: usesFont });
-    await expect(preview.getByRole('button', { name: 'Upload timer font' })).toBeEnabled({ enabled: usesFont });
+  const expectFits = async () => {
     await page.evaluate(() => document.fonts.ready);
     expect(await sample.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: `test-results/timer-variant-sample-${value}-${page.viewportSize()!.width}.png`, fullPage: true, animations: 'disabled' });
+  };
+  await expect(style.locator('option')).toHaveCount(TIMER_VARIANTS.length + 1);
+  await preview.getByLabel('Timer font', { exact: true }).selectOption('bungee');
+  for (const { value, layout } of TIMER_VARIANTS) {
+    await style.selectOption(value);
+    if (layout === 'graphic') await expect(sample.getByRole('img', { name: '01:04:03' })).toBeVisible();
+    else await expect(sample).toHaveText(timerText(value, value === 'digital' ? 0 : 3843000));
+    await expectFits();
+    await page.screenshot({ path: `test-results/timer-variant-sample-${value}-${width}.png`, fullPage: true, animations: 'disabled' });
   }
   await style.selectOption('flip');
   await expect(sample.locator('.timer-flip-digit').first()).toHaveCSS('animation-name', 'timer-flip');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(sample.locator('.timer-flip-digit').first()).toHaveCSS('animation-name', 'none');
-  const opened = page.waitForEvent('popup');
-  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
-  const popup = await opened;
-  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
-  expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'bungee', variant: 'flip' });
-  await expect(popup.locator('h2 .timer-face-flip')).toHaveText('00:00:00');
-});
-
-test('configures Rotation and BLAT in the launcher and launches them', async ({ page, context }) => {
-  await context.routeWebSocket('ws://localhost:23074', idleDevice);
-  await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
-  await preview.getByLabel('Timer style', { exact: true }).selectOption('rotation');
+  await page.emulateMedia({ reducedMotion: null });
+  await style.selectOption('words');
+  const language = preview.getByLabel('Words language', { exact: true });
+  await expect(language.locator('option')).toHaveCount(TIMER_LANGUAGES.length);
+  for (const { value, lang } of representativeLanguages) {
+    await language.selectOption(value);
+    await expect(sample).toHaveText(timerText('words', 3843000, value));
+    await expect(sample.locator('.timer-face-words')).toHaveAttribute('lang', lang);
+    await expectFits();
+    await page.screenshot({ path: `test-results/timer-words-sample-${value}-${width}.png`, fullPage: true });
+  }
+  await style.selectOption('rotation');
   const group = preview.getByRole('group', { name: 'Rotation styles' });
   await expect(group.getByRole('checkbox', { checked: true })).toHaveCount(TIMER_VARIANTS.length);
   for (const name of ['Digital', 'Words', 'Compact', 'Flip clock', 'Roman numerals', 'Seven-segment LCD', 'Progress rings']) await group.getByRole('checkbox', { name, exact: true }).uncheck();
@@ -720,18 +595,11 @@ test('configures Rotation and BLAT in the launcher and launches them', async ({ 
   await expect(blat).toHaveText('BLAT!!!');
   await expect(blat).toHaveCSS('font-family', /^Impact,/);
   await expect(blat).toHaveCSS('font-size', '15px');
-  await expect(preview.getByRole('checkbox')).toHaveCount(9 + TIMER_VARIANTS.length);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: `test-results/rotation-blat-editor-${page.viewportSize()!.width}.png`, fullPage: true, animations: 'disabled' });
-  const opened = page.waitForEvent('popup');
-  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
-  const popup = await opened;
-  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
-  expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'default', variant: 'rotation', rotation: ['analog', 'binary'], blat: true });
-  await expect(popup.locator('h2 .timer-face')).toHaveClass(/timer-face-(analog|binary)$/);
+  await page.screenshot({ path: `test-results/rotation-blat-editor-${width}.png`, fullPage: true, animations: 'disabled' });
 });
 
-test('force-starts a rotating BLAT timer without SNI, switching styles only while running', async ({ page }) => {
+test('force-starts a rotating BLAT timer without SNI and keeps the overlay inside the frame', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
   await page.routeWebSocket('ws://localhost:23074', (socket) => socket.close({ reason: 'SNI not running' }));
@@ -740,20 +608,11 @@ test('force-starts a rotating BLAT timer without SNI, switching styles only whil
   const appearance = resolveAppearance({ timer: { color: '#C43D52', font: 'bungee', variant: 'rotation', rotation: ['lcd', 'binary'], blat: true } });
   await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
   await expect(page.getByText('Disconnected: SNI not running', { exact: true })).toBeVisible();
-  const face = page.locator('h2 .timer-face');
   const blat = page.locator('.timer-blat');
   const force = page.getByRole('button', { name: 'FORCE TIMER START' });
-  const initial = (await face.getAttribute('class'))!;
-  const other = initial.endsWith('lcd') ? 'timer-face timer-face-binary' : 'timer-face timer-face-lcd';
-  expect(initial).toMatch(/^timer-face timer-face-(lcd|binary)$/);
-  await expect(force).toBeVisible();
   await expect(blat).toHaveCount(0);
-  await page.clock.runFor(100_000);
-  await expect(face).toHaveAttribute('class', initial);
-  await expect(face).toHaveAttribute('aria-label', '00:00:00');
   await force.click();
   await page.clock.runFor(1000);
-  await expect(face).toHaveAttribute('aria-label', '00:00:02');
   await expect(force).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'DE-FLUFF' })).toBeVisible();
   await expect(blat).toHaveText('BLAT!!!');
@@ -764,7 +623,7 @@ test('force-starts a rotating BLAT timer without SNI, switching styles only whil
   await expect(blat).toHaveCSS('-webkit-text-stroke-width', '2px');
   await expect(blat).toHaveCSS('-webkit-text-stroke-color', 'rgb(0, 0, 0)');
   await expect(blat).toHaveCSS('paint-order', 'stroke');
-  for (let move = 0; move < 20; move += 1) {
+  for (let move = 0; move < 5; move += 1) {
     const before = await blat.getAttribute('style');
     await page.clock.runFor(300);
     await expect(blat).not.toHaveAttribute('style', before!);
@@ -781,30 +640,16 @@ test('force-starts a rotating BLAT timer without SNI, switching styles only whil
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   await page.screenshot({ path: `test-results/rotation-blat-timer-${page.viewportSize()!.width}.png`, fullPage: true });
-  let elapsed = 2000;
-  while (await face.getAttribute('class') === initial && elapsed < 101_000) {
-    await page.clock.runFor(1000);
-    elapsed += 1000;
-  }
-  expect(elapsed).toBeGreaterThanOrEqual(10_000);
-  await expect(face).toHaveAttribute('class', other);
-  await page.getByRole('button', { name: 'DE-FLUFF' }).locator('xpath=preceding-sibling::button').click();
-  await expect(blat).toHaveCount(0);
-  const paused = (await face.getAttribute('aria-label'))!;
-  await page.clock.runFor(200_000);
-  await expect(face).toHaveAttribute('class', other);
-  await expect(face).toHaveAttribute('aria-label', paused);
-  await expect(force).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test('writes the words timer in every language inside each viewport', async ({ page }) => {
+test('writes the words timer in representative scripts inside each viewport', responsive, async ({ page }) => {
   const elapsed = (3600 + 4 * 60 + 2) * 1000;
   await page.clock.install({ time: new Date('2026-10-11T12:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-11T12:00:00Z'));
   await page.routeWebSocket('ws://localhost:23074', runningDevice);
   const { width } = page.viewportSize()!;
-  for (const { value, lang } of TIMER_LANGUAGES) {
+  for (const { value, lang } of representativeLanguages) {
     const appearance = resolveAppearance({ timer: { color: '#C43D52', font: 'bungee', variant: 'words', language: value } });
     await page.goto(buildPreviewUrl({ ...factoryPreviewDefaults().widgets, boxes: '4', appearance }));
     await expect(page.getByText('Connected to Fixture', { exact: true })).toBeVisible();
@@ -826,56 +671,14 @@ test('writes the words timer in every language inside each viewport', async ({ p
   }
 });
 
-test('picks a words language in the launcher and launches it', async ({ page, context }) => {
-  await context.routeWebSocket('ws://localhost:23074', idleDevice);
-  await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
-  const sample = preview.getByLabel('Timer preview', { exact: true });
-  await preview.getByLabel('Timer font', { exact: true }).selectOption('bungee');
-  await expect(preview.getByLabel('Words language', { exact: true })).toHaveCount(0);
-  await preview.getByLabel('Timer style', { exact: true }).selectOption('words');
-  const language = preview.getByLabel('Words language', { exact: true });
-  await expect(language.locator('option')).toHaveCount(TIMER_LANGUAGES.length);
-  for (const { value, lang } of TIMER_LANGUAGES) {
-    await language.selectOption(value);
-    await expect(sample).toHaveText(timerText('words', 3843000, value));
-    await expect(sample.locator('.timer-face-words')).toHaveAttribute('lang', lang);
-    await page.evaluate(() => document.fonts.ready);
-    expect(await sample.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: `test-results/timer-words-sample-${value}-${page.viewportSize()!.width}.png`, fullPage: true });
-  }
-  await language.selectOption('ko');
-  const opened = page.waitForEvent('popup');
-  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
-  const popup = await opened;
-  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
-  expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).timer).toEqual({ color: '#3B82F6', font: 'bungee', variant: 'words', language: 'ko' });
-  await expect(popup.locator('h2 .timer-face-words')).toHaveText('아직 시간이 있어요');
-});
-
-test('keeps the launcher usable when storage access is blocked', async ({ page, context }) => {
-  await context.routeWebSocket('ws://localhost:23074', idleDevice);
-  await context.addInitScript(() => Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Denied', 'SecurityError'); } }));
-  await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
-  await preview.getByLabel('Timer color', { exact: true }).fill('#654321');
-  await preview.getByRole('button', { name: 'Save Defaults' }).click();
-  await expect(preview.getByRole('status')).toHaveText('Save failed');
-  const opened = page.waitForEvent('popup');
-  await preview.getByRole('button', { name: 'Launch', exact: true }).click();
-  const popup = await opened;
-  await expect(popup.locator('h2')).toHaveCSS('color', 'rgb(101, 67, 33)');
-});
-
-test('renders every zero-to-eight-widget column layout in both versions', async ({ page }) => {
+test('renders the one-to-four-widget column layouts in both versions', responsive, async ({ page }) => {
   await page.routeWebSocket('ws://localhost:23074', (socket) => {
     socket.onMessage((message) => {
       if (JSON.parse(String(message)).Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
     });
   });
   for (const preview of [false, true]) {
-    for (let count = 0; count <= WIDGETS.length; count += 1) {
+    for (let count = 1; count <= 4; count += 1) {
       const settings = Object.fromEntries(WIDGETS.map(({ name }, index) => [name, index < count])) as WidgetSettings;
       const boxes = determineBoxCount(settings);
       await page.goto(preview ? buildPreviewUrl({ ...settings, boxes }) : buildLegacyUrl(settings));

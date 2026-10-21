@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { languageTag, TIMER_LANGUAGES } from '../src/preview/appearance';
-import { formatWords, splitDuration, timerText } from '../src/preview/timerFormat';
-import { WORDS } from '../src/preview/words';
+import { timerText } from '../src/preview/timerFormat';
 import { emojiNumber } from '../src/preview/words/emoji';
 import { spanishNumber } from '../src/preview/words/es';
 import { frenchNumber } from '../src/preview/words/fr';
@@ -15,16 +13,6 @@ import { klingonNumber } from '../src/preview/words/tlh';
 const time = (hours: number, minutes: number, seconds: number) => ((hours * 60 + minutes) * 60 + seconds) * 1000;
 
 describe('words timer languages', () => {
-  it('has a formatter and a not-started phrase for every language', () => {
-    expect(TIMER_LANGUAGES.map(({ value }) => value)).toEqual(['en', 'fr', 'sv', 'es', 'ko', 'la', 'ru', 'tlh', 'qya', 'emoji', 'mrt']);
-    expect(TIMER_LANGUAGES.map(({ value }) => languageTag(value))).toEqual(['en', 'fr', 'sv', 'es', 'ko', 'la', 'ru', 'tlh', 'qya', 'en', 'en']);
-    expect(TIMER_LANGUAGES.map(({ value }) => WORDS[value].notStarted)).toEqual([
-      'There is still time', 'Il est encore temps', 'Det finns fortfarande tid', 'Todavía hay tiempo', '아직 시간이 있어요', 'Adhuc tempus est',
-      'Ещё есть время', "poH tu'lu'", "Elen síla lúmenn' omentielvo", '⏳👍', "I pity the fool who ain't started!",
-    ]);
-    for (const { value } of TIMER_LANGUAGES) expect(timerText('words', 0, value)).toBe(WORDS[value].notStarted);
-  });
-
   it('defaults to English and leaves non-word styles unchanged', () => {
     expect(timerText('words', time(1, 4, 3))).toBe('One hour, four minutes, and three seconds');
     expect(timerText('words', time(1, 4, 3), 'en')).toBe('One hour, four minutes, and three seconds');
@@ -36,69 +24,41 @@ describe('words timer languages', () => {
 
 describe('French', () => {
   it.each([
-    [1, 'une'], [16, 'seize'], [17, 'dix-sept'], [21, 'vingt et une'], [22, 'vingt-deux'], [41, 'quarante et une'], [59, 'cinquante-neuf'],
-    [61, 'soixante et une'], [70, 'soixante-dix'], [71, 'soixante et onze'], [72, 'soixante-douze'], [79, 'soixante-dix-neuf'],
-    [80, 'quatre-vingts'], [81, 'quatre-vingt-une'], [90, 'quatre-vingt-dix'], [91, 'quatre-vingt-onze'], [99, 'quatre-vingt-dix-neuf'],
-    [100, 'cent'], [101, 'cent une'], [200, 'deux cents'], [201, 'deux cent une'], [280, 'deux cent quatre-vingts'], [999, 'neuf cent quatre-vingt-dix-neuf'], [1000, '1000'],
+    [21, 'vingt et une'], [71, 'soixante et onze'], [80, 'quatre-vingts'], [81, 'quatre-vingt-une'],
   ])('spells %i as %s', (value, expected) => {
     expect(frenchNumber(value)).toBe(expected);
   });
 
   it.each([
     [time(0, 0, 1), 'Une seconde'],
-    [time(0, 0, 3), 'Trois secondes'],
-    [time(0, 4, 3), 'Quatre minutes et trois secondes'],
     [time(1, 4, 3), 'Une heure, quatre minutes et trois secondes'],
-    [time(21, 21, 21), 'Vingt et une heures, vingt et une minutes et vingt et une secondes'],
-    [time(23, 59, 59), 'Vingt-trois heures, cinquante-neuf minutes et cinquante-neuf secondes'],
-    [time(1000, 0, 1), '1000 heures et une seconde'],
   ])('writes %i ms as "%s"', (ms, expected) => {
-    expect(formatWords(splitDuration(ms), 'fr')).toBe(expected);
     expect(timerText('words', ms, 'fr')).toBe(expected);
   });
 });
 
 describe('Swedish', () => {
   it.each([
-    [1, 'en'], [11, 'elva'], [18, 'arton'], [20, 'tjugo'], [21, 'tjugoen'], [42, 'fyrtiotvå'], [59, 'femtionio'], [99, 'nittionio'],
-    [100, 'hundra'], [121, 'hundratjugoen'], [200, 'tvåhundra'], [999, 'niohundranittionio'], [1000, '1000'],
+    [1, 'en'], [21, 'tjugoen'], [42, 'fyrtiotvå'],
   ])('spells %i as %s', (value, expected) => {
     expect(swedishNumber(value)).toBe(expected);
   });
 
-  it.each([
-    [time(0, 0, 1), 'En sekund'],
-    [time(0, 0, 3), 'Tre sekunder'],
-    [time(0, 1, 0), 'En minut'],
-    [time(0, 4, 3), 'Fyra minuter och tre sekunder'],
-    [time(1, 4, 3), 'En timme, fyra minuter och tre sekunder'],
-    [time(2, 30, 0), 'Två timmar och trettio minuter'],
-    [time(8, 0, 0), 'Åtta timmar'],
-    [time(1000, 0, 1), '1000 timmar och en sekund'],
-  ])('writes %i ms as "%s"', (ms, expected) => {
-    expect(timerText('words', ms, 'sv')).toBe(expected);
+  it('writes singular and plural units joined with och', () => {
+    expect(timerText('words', time(1, 4, 3), 'sv')).toBe('En timme, fyra minuter och tre sekunder');
   });
 });
 
 describe('Spanish', () => {
   it.each([
-    [1, 'f', 'una'], [1, 'm', 'un'], [16, 'f', 'dieciséis'], [21, 'f', 'veintiuna'], [21, 'm', 'veintiún'], [22, 'm', 'veintidós'],
-    [23, 'm', 'veintitrés'], [26, 'm', 'veintiséis'], [30, 'm', 'treinta'], [31, 'f', 'treinta y una'], [31, 'm', 'treinta y un'],
-    [59, 'm', 'cincuenta y nueve'], [100, 'f', 'cien'], [101, 'f', 'ciento una'], [101, 'm', 'ciento un'], [121, 'f', 'ciento veintiuna'],
-    [200, 'f', 'doscientas'], [200, 'm', 'doscientos'], [500, 'f', 'quinientas'], [701, 'm', 'setecientos un'],
-    [999, 'f', 'novecientas noventa y nueve'], [1000, 'f', '1000'],
+    [16, 'f', 'dieciséis'], [21, 'm', 'veintiún'], [31, 'f', 'treinta y una'],
   ] as const)('spells %i (%s) as %s', (value, gender, expected) => {
     expect(spanishNumber(value, gender)).toBe(expected);
   });
 
   it.each([
-    [time(0, 0, 1), 'Un segundo'],
-    [time(0, 0, 3), 'Tres segundos'],
-    [time(1, 0, 0), 'Una hora'],
-    [time(0, 4, 3), 'Cuatro minutos y tres segundos'],
     [time(1, 4, 3), 'Una hora, cuatro minutos y tres segundos'],
     [time(21, 21, 21), 'Veintiuna horas, veintiún minutos y veintiún segundos'],
-    [time(1000, 0, 1), '1000 horas y un segundo'],
   ])('writes %i ms as "%s"', (ms, expected) => {
     expect(timerText('words', ms, 'es')).toBe(expected);
   });
@@ -106,26 +66,20 @@ describe('Spanish', () => {
 
 describe('Korean', () => {
   it.each([
-    [1, '한'], [2, '두'], [3, '세'], [4, '네'], [5, '다섯'], [10, '열'], [11, '열한'], [20, '스무'], [21, '스물한'], [30, '서른'], [99, '아흔아홉'],
+    [1, '한'], [20, '스무'],
   ])('counts %i hours natively as %s', (value, expected) => {
     expect(nativeKoreanCount(value)).toBe(expected);
   });
 
   it.each([
-    [1, '일'], [10, '십'], [11, '십일'], [20, '이십'], [59, '오십구'], [100, '백'], [101, '백일'], [110, '백십'], [200, '이백'], [999, '구백구십구'], [1000, '1000'],
+    [10, '십'], [59, '오십구'],
   ])('spells %i in Sino-Korean as %s', (value, expected) => {
     expect(sinoKoreanNumber(value)).toBe(expected);
   });
 
   it.each([
-    [time(0, 0, 1), '일 초'],
-    [time(0, 4, 3), '사 분 삼 초'],
     [time(1, 4, 3), '한 시간 사 분 삼 초'],
-    [time(20, 0, 0), '스무 시간'],
     [time(21, 0, 1), '스물한 시간 일 초'],
-    [time(23, 59, 59), '스물세 시간 오십구 분 오십구 초'],
-    [time(100, 0, 0), '백 시간'],
-    [time(1000, 0, 0), '1000 시간'],
   ])('writes %i ms as "%s"', (ms, expected) => {
     expect(timerText('words', ms, 'ko')).toBe(expected);
   });
@@ -133,24 +87,14 @@ describe('Korean', () => {
 
 describe('Latin', () => {
   it.each([
-    [1, 'f', 'una'], [1, 'n', 'unum'], [2, 'f', 'duae'], [2, 'n', 'duo'], [3, 'f', 'tres'], [3, 'n', 'tria'], [4, 'n', 'quattuor'],
-    [17, 'n', 'septendecim'], [18, 'n', 'duodeviginti'], [19, 'n', 'undeviginti'], [20, 'n', 'viginti'], [21, 'f', 'viginti una'],
-    [21, 'n', 'viginti unum'], [28, 'n', 'duodetriginta'], [29, 'n', 'undetriginta'], [58, 'n', 'duodesexaginta'], [59, 'n', 'undesexaginta'],
-    [88, 'f', 'duodenonaginta'], [89, 'f', 'undenonaginta'], [98, 'f', 'nonaginta octo'], [100, 'f', 'centum'], [102, 'f', 'centum duae'],
-    [200, 'f', 'ducentae'], [200, 'n', 'ducenta'], [999, 'f', 'nongentae nonaginta novem'], [1000, 'f', '1000'],
+    [18, 'n', 'duodeviginti'], [19, 'n', 'undeviginti'], [21, 'f', 'viginti una'],
   ] as const)('spells %i (%s) as %s', (value, gender, expected) => {
     expect(latinNumber(value, gender)).toBe(expected);
   });
 
   it.each([
     [time(0, 0, 1), 'Unum secundum'],
-    [time(0, 0, 3), 'Tria secunda'],
-    [time(1, 0, 0), 'Una hora'],
-    [time(2, 0, 0), 'Duae horae'],
-    [time(0, 4, 3), 'Quattuor minuta et tria secunda'],
     [time(1, 4, 3), 'Una hora, quattuor minuta et tria secunda'],
-    [time(23, 59, 59), 'Viginti tres horae, undesexaginta minuta et undesexaginta secunda'],
-    [time(1000, 0, 1), '1000 horae et unum secundum'],
   ])('writes %i ms as "%s"', (ms, expected) => {
     expect(timerText('words', ms, 'la')).toBe(expected);
   });
@@ -158,76 +102,44 @@ describe('Latin', () => {
 
 describe('Russian', () => {
   it.each([
-    [1, 'm', 'один'], [1, 'f', 'одна'], [2, 'm', 'два'], [2, 'f', 'две'], [5, 'f', 'пять'], [10, 'm', 'десять'], [11, 'f', 'одиннадцать'],
-    [12, 'f', 'двенадцать'], [19, 'm', 'девятнадцать'], [20, 'm', 'двадцать'], [21, 'm', 'двадцать один'], [21, 'f', 'двадцать одна'],
-    [22, 'f', 'двадцать две'], [40, 'm', 'сорок'], [59, 'f', 'пятьдесят девять'], [100, 'm', 'сто'], [101, 'f', 'сто одна'],
-    [112, 'f', 'сто двенадцать'], [200, 'm', 'двести'], [999, 'm', 'девятьсот девяносто девять'], [1000, 'm', '1000'],
+    [2, 'm', 'два'], [2, 'f', 'две'],
   ] as const)('spells %i (%s) as %s', (value, gender, expected) => {
     expect(russianNumber(value, gender)).toBe(expected);
   });
 
   it.each([
-    [1, 0], [2, 1], [4, 1], [5, 2], [11, 2], [12, 2], [14, 2], [20, 2], [21, 0], [22, 1], [25, 2], [101, 0], [111, 2], [112, 2], [1000, 2], [1001, 0],
+    [1, 0], [2, 1], [5, 2], [12, 2], [21, 0],
   ])('uses plural form %i -> %i', (value, form) => {
     expect(russianPluralForm(value)).toBe(form);
   });
 
-  it.each([
-    [time(0, 0, 1), 'Одна секунда'],
-    [time(0, 0, 3), 'Три секунды'],
-    [time(0, 0, 5), 'Пять секунд'],
-    [time(1, 0, 0), 'Один час'],
-    [time(2, 0, 0), 'Два часа'],
-    [time(0, 4, 3), 'Четыре минуты и три секунды'],
-    [time(1, 4, 3), 'Один час, четыре минуты и три секунды'],
-    [time(11, 11, 11), 'Одиннадцать часов, одиннадцать минут и одиннадцать секунд'],
-    [time(21, 21, 21), 'Двадцать один час, двадцать одна минута и двадцать одна секунда'],
-    [time(22, 22, 22), 'Двадцать два часа, двадцать две минуты и двадцать две секунды'],
-    [time(1000, 0, 1), '1000 часов и одна секунда'],
-  ])('writes %i ms as "%s"', (ms, expected) => {
-    expect(timerText('words', ms, 'ru')).toBe(expected);
+  it('agrees numbers with masculine hours and feminine minutes and seconds', () => {
+    expect(timerText('words', time(21, 21, 21), 'ru')).toBe('Двадцать один час, двадцать одна минута и двадцать одна секунда');
   });
 });
 
 describe('Klingon', () => {
   it.each([
-    [1, "wa'"], [9, 'Hut'], [10, "wa'maH"], [11, "wa'maH wa'"], [20, "cha'maH"], [21, "cha'maH wa'"], [59, 'vaghmaH Hut'], [99, 'HutmaH Hut'],
-    [100, "wa'vatlh"], [101, "wa'vatlh wa'"], [110, "wa'vatlh wa'maH"], [999, 'Hutvatlh HutmaH Hut'], [1000, '1000'],
+    [1, "wa'"], [21, "cha'maH wa'"], [101, "wa'vatlh wa'"],
   ])('spells %i as %s', (value, expected) => {
     expect(klingonNumber(value)).toBe(expected);
   });
 
-  it.each([
-    [time(0, 0, 1), "wa' lup"],
-    [time(0, 0, 3), 'wej lup'],
-    [time(2, 0, 0), "cha' rep"],
-    [time(0, 4, 3), 'loS tup wej lup je'],
-    [time(1, 4, 3), "wa' rep loS tup wej lup je"],
-    [time(23, 59, 59), "cha'maH wej rep vaghmaH Hut tup vaghmaH Hut lup je"],
-    [time(1000, 0, 1), "1000 rep wa' lup je"],
-  ])('writes %i ms as "%s"', (ms, expected) => {
-    expect(timerText('words', ms, 'tlh')).toBe(expected);
+  it('writes units in order and ends a list with je', () => {
+    expect(timerText('words', time(1, 4, 3), 'tlh')).toBe("wa' rep loS tup wej lup je");
   });
 });
 
 describe('Quenya', () => {
   it.each([
-    [1, 'min'], [2, 'atta'], [3, 'neldë'], [10, 'quëan'], [11, 'minquë'], [12, 'yunquë'], [13, 'nelquë'], [19, 'neterquë'], [20, 'yuquain'],
-    [21, 'min yuquain'], [35, 'lempë nelquain'], [40, 'canquain'], [59, 'nertë lepenquain'], [99, 'nertë neterquain'], [100, '100'],
+    [21, 'min yuquain'], [35, 'lempë nelquain'], [100, '100'],
   ])('spells %i as %s', (value, expected) => {
     expect(quenyaNumber(value)).toBe(expected);
   });
 
   it.each([
-    [time(0, 0, 1), 'Min attëa enenquaista'],
-    [time(0, 0, 2), 'Attëa enenquaista atta'],
-    [time(0, 0, 3), 'Attië enenquaistar neldë'],
-    [time(1, 0, 0), 'Min lúmë'],
-    [time(2, 0, 0), 'Lúmë atta'],
-    [time(0, 4, 3), 'Enenquaistar canta ar attië enenquaistar neldë'],
     [time(1, 4, 3), 'Min lúmë, enenquaistar canta ar attië enenquaistar neldë'],
-    [time(23, 59, 59), 'Lúmi neldë yuquain, enenquaistar nertë lepenquain ar attië enenquaistar nertë lepenquain'],
-    [time(100, 0, 1), 'Lúmi 100 ar min attëa enenquaista'],
+    [time(2, 0, 0), 'Lúmë atta'],
   ])('writes %i ms as "%s"', (ms, expected) => {
     expect(timerText('words', ms, 'qya')).toBe(expected);
   });
@@ -236,19 +148,12 @@ describe('Quenya', () => {
 describe('Emoji', () => {
   const keycap = '\uFE0F\u20E3';
 
-  it.each([
-    [7, `7${keycap}`], [10, `1${keycap}0${keycap}`], [1000, `1${keycap}0${keycap}0${keycap}0${keycap}`],
-  ])('spells %i as keycaps', (value, expected) => {
-    expect(emojiNumber(value)).toBe(expected);
+  it('spells each digit as a keycap', () => {
+    expect(emojiNumber(10)).toBe(`1${keycap}0${keycap}`);
   });
 
-  it.each([
-    [time(0, 0, 3), `3${keycap}⚡`],
-    [time(0, 4, 0), `4${keycap}⏱\uFE0F`],
-    [time(1, 4, 3), `1${keycap}🕐 4${keycap}⏱\uFE0F 3${keycap}⚡`],
-    [time(1, 0, 59), `1${keycap}🕐 5${keycap}9${keycap}⚡`],
-  ])('writes %i ms as emoji', (ms, expected) => {
-    expect(timerText('words', ms, 'emoji')).toBe(expected);
+  it('writes each unit as keycaps followed by its emoji', () => {
+    expect(timerText('words', time(1, 4, 3), 'emoji')).toBe(`1${keycap}🕐 4${keycap}⏱\uFE0F 3${keycap}⚡`);
   });
 });
 

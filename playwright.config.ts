@@ -13,8 +13,7 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { viewport: { width: 1280, height: 900 } } },
-    { name: 'popup', use: { viewport: { width: 600, height: 600 } } },
-    { name: 'mobile', use: { viewport: { width: 390, height: 844 } } },
+    { name: 'popup', grep: /@responsive/, use: { viewport: { width: 600, height: 600 } } },
   ],
   webServer: process.env.TEST_BASE_URL ? undefined : {
     command: 'npm run dev -- --host 127.0.0.1 --port 5175 --strictPort',

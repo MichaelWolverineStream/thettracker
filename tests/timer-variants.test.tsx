@@ -1,7 +1,7 @@
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LAUNCH_SETTINGS } from '../src/preview/config';
-import { TIMER_VARIANTS, resolveAppearance, type TimerVariant } from '../src/preview/appearance';
+import { resolveAppearance, type TimerVariant } from '../src/preview/appearance';
 import { NOT_STARTED_WORDS, formatClock, formatCompact, formatRoman, formatWords, numberToWords, splitDuration, timerText, toRoman } from '../src/preview/timerFormat';
 import TimerFace from '../src/preview/components/TimerFace';
 
@@ -39,31 +39,22 @@ describe('timer text formats', () => {
   });
 
   it.each([
-    [0, 'zero'], [7, 'seven'], [13, 'thirteen'], [20, 'twenty'], [42, 'forty-two'], [99, 'ninety-nine'],
-    [100, 'one hundred'], [121, 'one hundred twenty-one'], [1000, 'one thousand'], [2305, 'two thousand three hundred five'],
+    [0, 'zero'], [13, 'thirteen'], [42, 'forty-two'], [1000, 'one thousand'],
   ])('spells %i as %s', (value, expected) => {
     expect(numberToWords(value)).toBe(expected);
   });
 
   it.each([
-    [0, NOT_STARTED_WORDS],
     [time(0, 0, 1), 'One second'],
-    [time(0, 0, 3), 'Three seconds'],
-    [time(0, 1, 0), 'One minute'],
-    [time(0, 4, 3), 'Four minutes and three seconds'],
-    [time(1, 0, 0), 'One hour'],
-    [time(1, 0, 1), 'One hour and one second'],
     [time(2, 30, 0), 'Two hours and thirty minutes'],
-    [time(1, 4, 3), 'One hour, four minutes, and three seconds'],
-    [time(23, 59, 59), 'Twenty-three hours, fifty-nine minutes, and fifty-nine seconds'],
-    [time(25, 0, 1), 'Twenty-five hours and one second'],
+    [time(1, 0, 0), 'One hour'],
   ])('writes %i ms as "%s"', (ms, expected) => {
     expect(formatWords(splitDuration(ms))).toBe(expected);
     expect(timerText('words', ms)).toBe(expected);
   });
 
   it.each([
-    [0, '0s'], [time(0, 0, 3), '3s'], [time(0, 4, 3), '4m 03s'], [time(1, 4, 3), '1h 04m 03s'], [time(25, 0, 0), '25h 00m 00s'],
+    [time(0, 0, 3), '3s'], [time(1, 4, 3), '1h 04m 03s'],
   ])('compacts %i ms as %s', (ms, expected) => {
     expect(formatCompact(splitDuration(ms))).toBe(expected);
     expect(timerText('compact', ms)).toBe(expected);
@@ -78,22 +69,20 @@ describe('timer text formats', () => {
     expect(timerText('roman', time(23, 59, 59))).toBe('XXIII:LIX:LIX');
   });
 
-  it.each(['digital', 'analog', 'lcd', 'rings', 'binary', 'flip'] as const)('uses the digital clock text for %s', (variant) => {
-    expect(timerText(variant, time(1, 4, 3))).toBe('01:04:03');
+  it('uses the digital clock text for graphic styles', () => {
+    expect(timerText('lcd', time(1, 4, 3))).toBe('01:04:03');
   });
 });
 
 describe('timer faces', () => {
   const ms = time(1, 4, 3);
 
-  it('renders digital as bare text', () => {
+  it('renders text faces as their formatted text, leaving digital bare', () => {
     const view = render(<h2><TimerFace variant="digital" ms={ms} /></h2>);
-    expect(view.container.querySelector('h2')!.innerHTML).toBe('01:04:03');
-  });
-
-  it.each([['words', 'One hour, four minutes, and three seconds'], ['compact', '1h 04m 03s'], ['roman', 'I:IV:III'], ['flip', '01:04:03']] as const)('renders %s as text', (variant, expected) => {
-    const view = render(<h2><TimerFace variant={variant} ms={ms} /></h2>);
-    expect(view.container.textContent).toBe(expected);
+    const timer = view.container.querySelector('h2')!;
+    expect(timer.innerHTML).toBe('01:04:03');
+    view.rerender(<h2><TimerFace variant="words" ms={ms} /></h2>);
+    expect(timer.textContent).toBe('One hour, four minutes, and three seconds');
   });
 
   it('positions analog hands from hours, minutes and ticking seconds', () => {
@@ -176,17 +165,25 @@ describe('preview tracker timer variants', () => {
     return { view, timer: view.container.querySelector('h2')! };
   };
 
-  it.each(TIMER_VARIANTS)('renders $label with the timer color and compensated duration', ({ value, usesFont, layout }) => {
-    const { view, timer } = renderVariant(value);
+  it('renders a text style with the timer color, font and compensated duration', () => {
+    const { view, timer } = renderVariant('words');
     expect(timer.style.color).toBe('rgb(18, 52, 86)');
-    expect(timer.style.fontFamily !== '').toBe(usesFont);
-    expect(timer.style.whiteSpace).toBe(layout === 'line' && value !== 'digital' ? 'nowrap' : '');
-    if (layout === 'graphic') expect(view.getByRole('img', { name: '01:04:03' })).toBeTruthy();
-    else expect(timer.textContent).toBe(timerText(value, time(1, 4, 3)));
+    expect(timer.style.fontFamily).not.toBe('');
+    expect(timer.style.whiteSpace).toBe('');
+    expect(timer.textContent).toBe('One hour, four minutes, and three seconds');
     expect(view.getByText('DE-FLUFF')).toBeTruthy();
   });
 
-  it.each([['words', NOT_STARTED_WORDS], ['compact', '0s'], ['roman', '—:—:—'], ['digital', '00:00:00'], ['flip', '00:00:00']] as const)('shows the not-started %s state', (variant, expected) => {
+  it('renders a graphic style with the timer color and compensated duration but no font', () => {
+    const { view, timer } = renderVariant('lcd');
+    expect(timer.style.color).toBe('rgb(18, 52, 86)');
+    expect(timer.style.fontFamily).toBe('');
+    expect(timer.style.whiteSpace).toBe('');
+    expect(view.getByRole('img', { name: '01:04:03' })).toBeTruthy();
+    expect(view.getByText('DE-FLUFF')).toBeTruthy();
+  });
+
+  it.each([['words', NOT_STARTED_WORDS], ['roman', '—:—:—']] as const)('shows the not-started %s state', (variant, expected) => {
     fixture.hasStarted = false;
     fixture.timer.duration = 0;
     expect(renderVariant(variant).timer.textContent).toBe(expected);

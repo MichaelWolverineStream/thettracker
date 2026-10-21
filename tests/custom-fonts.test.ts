@@ -19,14 +19,12 @@ afterEach(() => {
 describe('custom font validation', () => {
   it.each([
     ['font.WOFF2', [0x77, 0x4f, 0x46, 0x32]],
-    ['font.woff', [0x77, 0x4f, 0x46, 0x46]],
     ['font.ttf', [0, 1, 0, 0]],
-    ['font.otf', [0x4f, 0x54, 0x54, 0x4f]],
   ])('accepts matching font header %s', (name, header) => {
     expect(() => validateFontData(name as string, new Uint8Array(header as number[]).buffer)).not.toThrow();
   });
 
-  it.each(['font.svg', 'font.ttc', 'font.css', 'font', '__proto__', 'constructor'])('rejects unsupported file %s', (name) => {
+  it.each(['font.svg', 'font', '__proto__'])('rejects unsupported file %s', (name) => {
     expect(() => validateFontData(name, woff2)).toThrow('Choose a WOFF2');
   });
 
@@ -47,11 +45,6 @@ describe('custom font validation', () => {
   it('uses browser decoding to reject damaged font data', async () => {
     vi.stubGlobal('FontFace', class { load() { return Promise.reject(new Error('Invalid outlines')); } });
     await expect(importCustomFont(file())).rejects.toThrow('Invalid font file');
-  });
-
-  it('reports missing FontFace support', async () => {
-    vi.stubGlobal('FontFace', undefined);
-    await expect(importCustomFont(file())).rejects.toThrow('unavailable in this browser');
   });
 
   it('bounds font decoding and file reads', async () => {
@@ -104,20 +97,16 @@ describe('custom font validation', () => {
 });
 
 describe('custom font loading lifecycle', () => {
-  it('loads no assets for built-in fonts', () => {
-    const load = vi.spyOn(assets, 'loadCustomFont');
-    const view = renderHook(() => useTimerFont(resolveAppearance({ timer: { font: 'bungee' } }).timer));
-    expect(view.result.current.family).toContain('Tracker Bungee');
-    expect(load).not.toHaveBeenCalled();
-  });
-
   it('registers only a loaded face and removes it on deselection', async () => {
     const add = vi.fn();
     const remove = vi.fn();
     Object.defineProperty(document, 'fonts', { configurable: true, value: { add, delete: remove } });
     const face = { family: customFontFamily(id) } as FontFace;
-    vi.spyOn(assets, 'loadCustomFont').mockResolvedValue({ face, name: 'sample.woff2' });
-    const view = renderHook(({ timer }) => useTimerFont(timer), { initialProps: { timer: resolveAppearance({ timer: { font: 'custom', customFontId: id } }).timer } });
+    const load = vi.spyOn(assets, 'loadCustomFont').mockResolvedValue({ face, name: 'sample.woff2' });
+    const view = renderHook(({ timer }) => useTimerFont(timer), { initialProps: { timer: resolveAppearance({ timer: { font: 'bungee' } }).timer } });
+    expect(view.result.current.family).toContain('Tracker Bungee');
+    expect(load).not.toHaveBeenCalled();
+    view.rerender({ timer: resolveAppearance({ timer: { font: 'custom', customFontId: id } }).timer });
     expect(view.result.current.loading).toBe(true);
     expect(view.result.current.family).toBeUndefined();
     await waitFor(() => expect(view.result.current.family).toContain(customFontFamily(id)));

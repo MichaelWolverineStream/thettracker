@@ -377,8 +377,13 @@ npm run build
 npx eslint src/main.tsx src/versionRouting.ts src/landing src/preview --ext ts,tsx
 ```
 
-The browser suite uses locally installed Google Chrome and runs on desktop,
-600x600 popup and mobile viewports. Unit tests use fake clocks and a controlled
+Test principles, layers and viewport rules are documented in
+[tests/README.md](tests/README.md); read them before adding tests.
+
+The browser suite uses locally installed Google Chrome. Every browser test runs
+on desktop; tests tagged `@responsive` also run in a 600x600 popup viewport.
+Screenshots of each surface are saved under `test-results/` for review, and only
+the legacy tracker screenshot is asserted. Unit tests use fake clocks and a controlled
 SNI implementation; browser tests intercept WebSockets rather than requiring
 hardware. They cover URL contracts, legacy screenshots, real launch popups,
 finite-time feature parity, timer accumulation, color safety, saved defaults,
