@@ -392,8 +392,13 @@ mixed-content permissions must be verified in the target environment.
 npm test
 npm run test:e2e
 npm run build
-npx eslint src/main.tsx src/versionRouting.ts src/landing src/preview --ext ts,tsx
+npm run lint
+npm run typecheck
 ```
+
+`npm run lint` lints everything except frozen [src/legacy](src/legacy) with type
+information and must report no problems. `npm run typecheck` checks `src`, `tests`
+and the Vite, Vitest and Playwright configs; `npm run build` checks only `src`.
 
 Test principles, layers and viewport rules are documented in
 [tests/README.md](tests/README.md); read them before adding tests.
@@ -498,3 +503,28 @@ Toolchain upgrade on October 21, 2026:
   on development and production preview with unchanged legacy screenshots; the
   unit tests also pass on Node.js 22. Full lint is unchanged at 41 errors and 47
   warnings. Legacy was re-certified. `npm ci` prints no warnings.
+
+Lint toolchain upgrade on October 21, 2026:
+
+- ESLint 8.57.0 → 10.12.0 with flat config (`eslint.config.js` replaces
+  `.eslintrc.cjs`), `@typescript-eslint` 7.18.0 → `typescript-eslint` 8.71.1,
+  `eslint-plugin-react-hooks` 4.6.0 → 7.1.1 and `eslint-plugin-react-refresh`
+  0.4.6 → 0.5.7, plus explicit `@eslint/js` 10.0.1 and `globals` 17.13.0.
+  TypeScript stays at 5.9.3; `typescript-eslint` 8 supports up to 6.0.
+- Lint is now type-aware (`recommendedTypeChecked`) across `src`, `tests` and the
+  config files, and includes the React Compiler rules from `react-hooks` 7.
+  [tests/tsconfig.json](tests/tsconfig.json) puts tests in a TypeScript project.
+  Frozen legacy is ignored, so `npm run lint` is now a release gate and replaces
+  the scoped lint command.
+- Preview code was updated without behavior changes to satisfy the new rules: no
+  ref reads or mutations during render, no synchronous state resets in effects,
+  and `useShouldStart` moved to `src/preview/useShouldStart.ts`, which removes the
+  inherited Fast Refresh warning. Test fixes are typing-only, including removing
+  `exact: true` from Testing Library role queries, which ignore it.
+- This resolves the `@typescript-eslint` 8 follow-up above. `npm audit` now
+  reports 8 findings (3 moderate, 5 high), all in the Tailwind 3 chain (`braces`,
+  `chokidar`, `fast-glob`, `micromatch`, `postcss-nested`,
+  `postcss-selector-parser`, `tailwindcss`, `tailwindcss-animate`).
+- Lint, typecheck, 188 unit tests and the build pass, and 28 browser tests pass on
+  development and production preview with unchanged legacy screenshots. Legacy
+  was re-certified. `npm ci` prints no warnings.

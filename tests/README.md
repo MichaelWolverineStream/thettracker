@@ -15,6 +15,11 @@ Node 25+ has its own `localStorage`/`sessionStorage` globals. `test-environment.
 fails if they shadow jsdom's Web Storage, which would make `Storage.prototype` spies in the
 storage tests miss writes.
 
+Tests are type-checked (`npm run typecheck`, via `tests/tsconfig.json`) and linted with type
+information. Give Testing Library queries a type argument (`getByLabelText<HTMLSelectElement>(…)`)
+instead of casting the result, type `JSON.parse` results, and keep synchronous `act` callbacks
+returning `void` so `act` does not return an unawaited promise.
+
 ## Principles
 
 1. **Protect a behavior or contract that matters.** Every test guards something a user or an

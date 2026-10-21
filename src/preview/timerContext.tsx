@@ -1,15 +1,5 @@
 import React, { useState } from 'react'
-
-const ShouldStartContext = React.createContext<{
-    shouldStart: boolean;
-    setShouldStart: React.Dispatch<React.SetStateAction<boolean>>;
-    timerOn: boolean;
-    setTimerOn: React.Dispatch<React.SetStateAction<boolean>>;
-  }>({
-    shouldStart: false, setShouldStart: () => {},
-    timerOn: false, setTimerOn: () => {}
-  }
-);
+import { ShouldStartContext } from './useShouldStart'
 
 export const ShouldStartProvider = ({ children }: { children: React.ReactNode }) => {
   const [shouldStart, setShouldStart] = useState(false);
@@ -19,12 +9,4 @@ export const ShouldStartProvider = ({ children }: { children: React.ReactNode })
       {children}
     </ShouldStartContext.Provider>
   );
-}
-
-export const useShouldStart = () => {
-    const context = React.useContext(ShouldStartContext);
-    if (context === undefined) {
-      throw new Error('useShouldStart must be used within a ShouldStartProvider');
-    }
-    return context;
 }

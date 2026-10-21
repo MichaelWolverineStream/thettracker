@@ -27,7 +27,7 @@ export class FakeSniSocket {
 
   send(message: string) {
     if (this.readyState !== FakeSniSocket.OPEN) throw new Error('Socket not open');
-    this.sent.push({ command: JSON.parse(message), time: Date.now() });
+    this.sent.push({ command: JSON.parse(message) as Command, time: Date.now() });
   }
 
   open() {

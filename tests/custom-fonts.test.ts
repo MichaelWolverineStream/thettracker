@@ -21,7 +21,7 @@ describe('custom font validation', () => {
     ['font.WOFF2', [0x77, 0x4f, 0x46, 0x32]],
     ['font.ttf', [0, 1, 0, 0]],
   ])('accepts matching font header %s', (name, header) => {
-    expect(() => validateFontData(name as string, new Uint8Array(header as number[]).buffer)).not.toThrow();
+    expect(() => validateFontData(name, new Uint8Array(header).buffer)).not.toThrow();
   });
 
   it.each(['font.svg', 'font', '__proto__'])('rejects unsupported file %s', (name) => {
@@ -53,7 +53,7 @@ describe('custom font validation', () => {
     const decoding = expect(importCustomFont(file())).rejects.toThrow('timed out');
     await vi.advanceTimersByTimeAsync(FONT_OPERATION_TIMEOUT);
     await decoding;
-    const reading = expect(importCustomFont({ ...file(), arrayBuffer: () => new Promise(() => {}) } as File)).rejects.toThrow('timed out');
+    const reading = expect(importCustomFont({ ...file(), arrayBuffer: () => new Promise(() => {}) })).rejects.toThrow('timed out');
     await vi.advanceTimersByTimeAsync(FONT_OPERATION_TIMEOUT);
     await reading;
   });

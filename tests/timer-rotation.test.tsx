@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LAUNCH_SETTINGS } from '../src/preview/config';
 import { resolveAppearance, type TimerVariant } from '../src/preview/appearance';
-import { ShouldStartProvider, useShouldStart } from '../src/preview/timerContext';
+import { ShouldStartProvider } from '../src/preview/timerContext';
+import { useShouldStart } from '../src/preview/useShouldStart';
 import { useTimerRotation } from '../src/preview/useTimerRotation';
 
 const fixture = vi.hoisted(() => ({
@@ -17,7 +18,7 @@ vi.mock('../src/preview/components/timer', () => ({ default: () => ({ ...fixture
 import PreviewApp from '../src/preview/App';
 
 const STYLES: readonly TimerVariant[] = ['analog', 'lcd', 'flip'];
-const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+const advance = (ms: number) => { act(() => { vi.advanceTimersByTime(ms); }); };
 
 function RotationProbe({ styles = STYLES, running }: { styles?: readonly TimerVariant[]; running: boolean }) {
   return <output data-testid="face">{useTimerRotation(styles, running)}</output>;

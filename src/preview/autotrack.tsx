@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useShouldStart } from './timerContext.tsx';
+import { useShouldStart } from './useShouldStart';
 
 const RECONNECT_TIMEOUT = 5000;
 const AUTOTRACK_TIMEOUT = 125;
@@ -176,7 +176,7 @@ function useAutoTrackWebSocket(props: AutotrackingProps) {
             try {
                 if (responsePhase === 'devices') {
                     if (typeof event.data !== 'string') throw new Error('Invalid device list');
-                    const results: unknown = JSON.parse(event.data).Results;
+                    const results = (JSON.parse(event.data) as { Results?: unknown }).Results;
                     if (!Array.isArray(results) || !results.every(device => typeof device === 'string')) throw new Error('Invalid device list');
                     if (results.length === 0) {
                         setData(previous => ({ ...previous, status: 'No devices found' }));

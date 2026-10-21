@@ -4,7 +4,7 @@ import { AutotrackingProps } from './autotrack.tsx'
 import { TimerProps } from './components/timer.tsx'
 import useTimer from './components/timer.tsx'
 import Box from './components/statbox.tsx'
-import { useShouldStart } from './timerContext.tsx'
+import { useShouldStart } from './useShouldStart'
 import { DEFAULT_TIMER_COLOR, LARGE_CHECK_BUCKETS, createSpeedMap, resolveAppearance, timerLanguage, timerStyles, variantOption, type AppearanceSettings } from './appearance';
 import { useFittedTimer, useTimerFont } from './useTimerFont';
 import { useTimerRotation } from './useTimerRotation';
@@ -13,7 +13,7 @@ import BlatOverlay from './components/BlatOverlay';
 import BeeBobble from './components/BeeBobble';
 import { timerText } from './timerFormat';
 
-
+const LARGE_CPH_BUCKETS = [...LARGE_CHECK_BUCKETS];
 
 export interface userSettingsProps {
   checkCount: boolean;
@@ -29,8 +29,8 @@ export interface userSettingsProps {
 }
 
 function App(props: userSettingsProps) {
-  const appearance = useRef(resolveAppearance(props.appearance)).current;
-  const styles = useRef(timerStyles(appearance.timer)).current;
+  const [appearance] = useState(() => resolveAppearance(props.appearance));
+  const [styles] = useState(() => timerStyles(appearance.timer));
   const { timerOn, setTimerOn } = useShouldStart();
   const variant = variantOption(useTimerRotation(styles, timerOn));
   const blat = appearance.timer.blat === true;
@@ -39,15 +39,16 @@ function App(props: userSettingsProps) {
   const family = variant.usesFont ? font.family : undefined;
   const customFamily = appearance.timer.font === 'custom' ? family : undefined;
   const timerElement = useRef<HTMLHeadingElement>(null);
-  const SPEED_MAP = useRef(createSpeedMap(appearance));
+  const [speedMap] = useState(() => createSpeedMap(appearance));
+  const [largeChecks, setLargeChecks] = useState(false);
   const [userSettings] = useState<userSettingsProps>(props);
 
-  const timerProps = useRef<TimerProps>({
+  const [timerProps] = useState<TimerProps>(() => ({
     timeStarted: 0,
     startAt: 0,
     duration: 0
-  });
-  const autotrackingProps = useRef<AutotrackingProps>({
+  }));
+  const [autotrackingProps] = useState<AutotrackingProps>(() => ({
     status: 'Disconnected',
     connected: false,
     host: 'ws://localhost',
@@ -61,13 +62,13 @@ function App(props: userSettingsProps) {
     screens: 0,
     damage: 0,
     magic: 0
-  });
+  }));
   const [manualCheckCount, setManualCheckCount] = useState<number>(0);
-  const data = useAutoTrackWebSocket(autotrackingProps.current);
-  const timer = useTimer(timerProps.current);
-  if (data.maxChecks > 400) {
-    SPEED_MAP.current['cph'].buckets = [...LARGE_CHECK_BUCKETS];
-  }
+  const data = useAutoTrackWebSocket(autotrackingProps);
+  const timer = useTimer(timerProps);
+  // Large-world buckets stay selected once seen.
+  if (data.maxChecks > 400 && !largeChecks) setLargeChecks(true);
+  const cphBuckets = largeChecks ? LARGE_CPH_BUCKETS : speedMap['cph'].buckets;
 
   const displayMs = timer.hasStarted ? timer.duration + 1000 : 0;
   const fitKey = variant.layout === 'line' ? customFamily ?? (variant.value === 'digital' ? undefined : variant.value) : undefined;
@@ -113,29 +114,29 @@ function App(props: userSettingsProps) {
         <span className={`inline-grid gap-0 grid-cols-${userSettings.boxes}`}>
           {userSettings.checkCount && (
             <button onClick={() => setManualCheckCount((prev) => prev + 1)} onContextMenu={handleRightClick} onWheel={handleScroll}>
-              <Box title="Checks" count={data.checkCount + manualCheckCount} speed={cph} unit="cph" buckets={SPEED_MAP.current['cph'].buckets} colors={SPEED_MAP.current['cph'].colors}/>
+              <Box title="Checks" count={data.checkCount + manualCheckCount} speed={cph} unit="cph" buckets={cphBuckets} colors={speedMap['cph'].colors}/>
             </button>
           )}
           {userSettings.bonks && (
-            <Box title="Bonks" count={data.bonks} speed={mBpm} unit="mBpm" buckets={SPEED_MAP.current['mBpm'].buckets} colors={SPEED_MAP.current['mBpm'].colors} />
+            <Box title="Bonks" count={data.bonks} speed={mBpm} unit="mBpm" buckets={speedMap['mBpm'].buckets} colors={speedMap['mBpm'].colors} />
           )}
           {userSettings.chestTurns && (
-            <Box title="Chest Turns" count={data.chestTurns} speed={ctph} unit="ctph" buckets={SPEED_MAP.current['ctph'].buckets} colors={SPEED_MAP.current['ctph'].colors} />
+            <Box title="Chest Turns" count={data.chestTurns} speed={ctph} unit="ctph" buckets={speedMap['ctph'].buckets} colors={speedMap['ctph'].colors} />
           )}
           {userSettings.deaths && (
-            <Box title="Deaths" count={data.deaths} speed={mdpm} unit="Mdpm" buckets={SPEED_MAP.current['Mdpm'].buckets} colors={SPEED_MAP.current['Mdpm'].colors} />
+            <Box title="Deaths" count={data.deaths} speed={mdpm} unit="Mdpm" buckets={speedMap['Mdpm'].buckets} colors={speedMap['Mdpm'].colors} />
           )}
           {userSettings.rupees && (
-            <Box title="Rupees Spent" count={data.rupees} speed={rph} unit="rph" buckets={SPEED_MAP.current['rph'].buckets} colors={SPEED_MAP.current['rph'].colors} />
+            <Box title="Rupees Spent" count={data.rupees} speed={rph} unit="rph" buckets={speedMap['rph'].buckets} colors={speedMap['rph'].colors} />
           )}
           {userSettings.screens && (
-            <Box title="Screens" count={data.screens} speed={sph} unit="sph" buckets={SPEED_MAP.current['sph'].buckets} colors={SPEED_MAP.current['sph'].colors} />
+            <Box title="Screens" count={data.screens} speed={sph} unit="sph" buckets={speedMap['sph'].buckets} colors={speedMap['sph'].colors} />
           )}
           {userSettings.damage && (
-            <Box title="Hearts Lost" count={damage} speed={dph} unit="dph" buckets={SPEED_MAP.current['dph'].buckets} colors={SPEED_MAP.current['dph'].colors} />
+            <Box title="Hearts Lost" count={damage} speed={dph} unit="dph" buckets={speedMap['dph'].buckets} colors={speedMap['dph'].colors} />
           )}
           {userSettings.magic && (
-            <Box title="Magic Bars" count={magic} speed={mph} unit="mph" buckets={SPEED_MAP.current['mph'].buckets} colors={SPEED_MAP.current['mph'].colors} />
+            <Box title="Magic Bars" count={magic} speed={mph} unit="mph" buckets={speedMap['mph'].buckets} colors={speedMap['mph'].colors} />
           )}
         </span>
         <div className={appearance.timer.beebobble ? 'flex justify-center items-center mb-8' : 'flex justify-center items-center space-x-4 mb-8'} style={appearance.timer.beebobble ? { position: 'relative', paddingBottom: 60 } : undefined}>

@@ -2,7 +2,8 @@ import React from 'react';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import useTimer from '../src/preview/components/timer';
-import { ShouldStartProvider, useShouldStart } from '../src/preview/timerContext';
+import { ShouldStartProvider } from '../src/preview/timerContext';
+import { useShouldStart } from '../src/preview/useShouldStart';
 import Box from '../src/preview/components/statbox';
 import useAutoTrackWebSocket from '../src/preview/autotrack';
 import { FakeSniSocket, memoryFrame } from './helpers/sni';
@@ -86,12 +87,12 @@ describe('preview timer accounting', () => {
   it('banks partial seconds on automatic stops and resumes without counting paused wall time', () => {
     const view = render(<ShouldStartProvider><TimerProbe /></ShouldStartProvider>);
     fireEvent.click(view.getByText('auto start'));
-    act(() => vi.advanceTimersByTime(2450));
+    act(() => { vi.advanceTimersByTime(2450); });
     fireEvent.click(view.getByText('auto stop'));
     expect(view.getByTestId('duration').textContent).toBe('2450');
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => { vi.advanceTimersByTime(5000); });
     fireEvent.click(view.getByText('auto start'));
-    act(() => vi.advanceTimersByTime(1250));
+    act(() => { vi.advanceTimersByTime(1250); });
     fireEvent.click(view.getByText('auto stop'));
     expect(view.getByTestId('duration').textContent).toBe('3700');
     fireEvent.click(view.getByText('auto stop'));
@@ -102,14 +103,14 @@ describe('preview timer accounting', () => {
   it('retains manual pause precedence, mixes stops and clears intervals on unmount', () => {
     const view = render(<ShouldStartProvider><TimerProbe /></ShouldStartProvider>);
     fireEvent.click(view.getByText('auto start'));
-    act(() => vi.advanceTimersByTime(1750));
+    act(() => { vi.advanceTimersByTime(1750); });
     fireEvent.click(view.getByText('pause'));
     expect(view.getByTestId('duration').textContent).toBe('1750');
     fireEvent.click(view.getByText('auto start'));
     expect(view.getByTestId('running').textContent).toBe('false');
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => { vi.advanceTimersByTime(5000); });
     fireEvent.click(view.getByText('resume'));
-    act(() => vi.advanceTimersByTime(1500));
+    act(() => { vi.advanceTimersByTime(1500); });
     fireEvent.click(view.getByText('auto stop'));
     expect(view.getByTestId('duration').textContent).toBe('3250');
     fireEvent.click(view.getByText('resume'));
@@ -148,7 +149,7 @@ describe('preview color safety', () => {
     [10, 'rgb(255, 190, 11)'],
     [Number.POSITIVE_INFINITY, 'rgb(255, 190, 11)'],
   ])('renders a valid color for speed %s', (speed, expected) => {
-    const view = render(<Box title="Checks" count={0} speed={speed as number} unit="cph" buckets={[0, 10]} colors={[[58, 134, 255], [255, 190, 11]]} />);
+    const view = render(<Box title="Checks" count={0} speed={speed} unit="cph" buckets={[0, 10]} colors={[[58, 134, 255], [255, 190, 11]]} />);
     expect(view.container.querySelector<HTMLDivElement>('.beveled-box')!.style.backgroundColor).toBe(expected);
   });
 
@@ -177,7 +178,7 @@ function SniProbe() {
   </>;
 }
 
-const advance = (duration: number) => act(() => vi.advanceTimersByTime(duration));
+const advance = (duration: number) => { act(() => { vi.advanceTimersByTime(duration); }); };
 const reply = (socket: FakeSniSocket, payload: string | ArrayBuffer) => act(() => socket.message(payload));
 const mode = (socket: FakeSniSocket, value: number) => reply(socket, new Uint8Array([value]).buffer);
 
@@ -408,11 +409,11 @@ describe('preview SNI ownership and bounded continuous recovery', () => {
     advance(1500);
     expect(socket.sent).toHaveLength(commands);
     reply(socket, memoryFrame({ maxChecks: 500, checkCount: 300 }));
-    expect(JSON.parse(view.getByTestId('stats').textContent!).checkCount).toBe(0);
+    expect((JSON.parse(view.getByTestId('stats').textContent) as { checkCount: number }).checkCount).toBe(0);
     advance(0);
     mode(socket, 9);
     reply(socket, memoryFrame({ maxChecks: 500, checkCount: 300, bonks: 3, chestTurns: 4, deaths: 2, rupees: 513, screens: 1026, damage: 257, magic: 385 }));
-    expect(JSON.parse(view.getByTestId('stats').textContent!)).toMatchObject({
+    expect(JSON.parse(view.getByTestId('stats').textContent)).toMatchObject({
       maxChecks: 500, checkCount: 300, prevCheckCount: 0, bonks: 3, chestTurns: 4,
       deaths: 2, rupees: 513, screens: 1026, damage: 257, magic: 385,
     });

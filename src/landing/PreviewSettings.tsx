@@ -48,9 +48,8 @@ export default function PreviewSettings() {
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   useEffect(() => () => { uploadSequence.current += 1; }, []);
-  useEffect(() => {
-    if (font.name && draft.appearance.timer.customFontId) setCustomFont({ id: draft.appearance.timer.customFontId, name: font.name });
-  }, [font.name, draft.appearance.timer.customFontId]);
+  const loadedFontId = draft.appearance.timer.customFontId;
+  if (font.name && loadedFontId && (customFont?.id !== loadedFontId || customFont.name !== font.name)) setCustomFont({ id: loadedFontId, name: font.name });
 
   function edit(update: SetStateAction<PreviewDefaults>) {
     setDraft(update);

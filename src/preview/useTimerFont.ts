@@ -13,7 +13,6 @@ export function useTimerFont(timer: AppearanceSettings['timer']) {
   const id = timer.font === 'custom' && isCustomFontId(timer.customFontId) ? timer.customFontId : undefined;
   const [loaded, setLoaded] = useState<LoadedFont>();
   useEffect(() => {
-    setLoaded(undefined);
     if (!id) return;
     let cancelled = false;
     let registered: FontFace | undefined;
@@ -27,6 +26,7 @@ export function useTimerFont(timer: AppearanceSettings['timer']) {
     });
     return () => {
       cancelled = true;
+      setLoaded(undefined);
       if (registered) document.fonts.delete(registered);
     };
   }, [id]);

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page, type WebSocketRoute } from '@playwright/test';
-import { memoryFrame } from './helpers/sni';
+import { memoryFrame, type Command } from './helpers/sni';
 import { WIDGETS, buildPreviewUrl, determineBoxCount, type WidgetSettings } from '../src/preview/config';
 import { buildLegacyUrl } from '../src/landing/legacyLaunch';
 import { METRICS, TIMER_FONTS, TIMER_LANGUAGES, TIMER_VARIANTS, hexToRgb, resolveAppearance } from '../src/preview/appearance';
@@ -10,11 +10,12 @@ import { CUSTOM_FONTS_DATABASE, customFontFamily } from '../src/preview/customFo
 
 const legacyQuery = '?tracker=true&checkCount=true&bonks=true&chestTurns=true&deaths=true&rupees=true&screens=true&damage=true&magic=true&boxes=4';
 const responsive = { tag: '@responsive' };
+const sniCommand = (message: string | Buffer) => JSON.parse(String(message)) as Command;
 const representativeLanguages = TIMER_LANGUAGES.filter(({ value }) => ['qya', 'ko', 'ru', 'emoji'].includes(value));
 
 function idleDevice(socket: WebSocketRoute) {
   socket.onMessage((message) => {
-    const request = JSON.parse(String(message));
+    const request = sniCommand(message);
     if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
     if (request.Opcode === 'GetAddress') socket.send(Buffer.from([0]));
   });
@@ -22,10 +23,10 @@ function idleDevice(socket: WebSocketRoute) {
 
 function runningDevice(socket: WebSocketRoute) {
   socket.onMessage((message) => {
-    const request = JSON.parse(String(message));
+    const request = sniCommand(message);
     if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
     if (request.Opcode === 'GetAddress') {
-      socket.send(request.Operands[0] === 'f50010' ? Buffer.from([7]) : Buffer.from(memoryFrame({ checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 })));
+      socket.send(request.Operands?.[0] === 'f50010' ? Buffer.from([7]) : Buffer.from(memoryFrame({ checkCount: 55, bonks: 2, chestTurns: 11, deaths: 1, rupees: 500, screens: 120, damage: 127, magic: 240 })));
     }
   });
 }
@@ -61,10 +62,10 @@ test('custom font upload persists, launches and fits', async ({ page, context })
   let running = false;
   await context.routeWebSocket('ws://localhost:23074', (socket) => {
     socket.onMessage((message) => {
-      const request = JSON.parse(String(message));
+      const request = sniCommand(message);
       if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
       if (request.Opcode === 'GetAddress') {
-        socket.send(request.Operands[0] === 'f50010' ? Buffer.from([running ? 7 : 0]) : Buffer.from(memoryFrame()));
+        socket.send(request.Operands?.[0] === 'f50010' ? Buffer.from([running ? 7 : 0]) : Buffer.from(memoryFrame()));
       }
     });
   });
@@ -84,7 +85,7 @@ test('custom font upload persists, launches and fits', async ({ page, context })
   await page.screenshot({ path: `test-results/custom-font-editor-${page.viewportSize()!.width}.png`, fullPage: true });
   await preview.getByRole('button', { name: 'Save Defaults' }).click();
   const raw = await page.evaluate((key) => localStorage.getItem(key)!, PREVIEW_DEFAULTS_KEY);
-  expect(JSON.parse(raw).appearance.timer).toEqual({ color: '#C43D52', font: 'custom', customFontId: id });
+  expect((JSON.parse(raw) as { appearance: { timer: unknown } }).appearance.timer).toEqual({ color: '#C43D52', font: 'custom', customFontId: id });
   expect(raw).not.toContain('personal-timer');
   await page.reload();
   await expectCustomFont(sample, id);
@@ -151,13 +152,13 @@ test('missing custom font falls back', async ({ page, context, browser }) => {
   } finally { await copied.close(); }
   await popup.evaluate(({ name, id }) => new Promise<void>((resolve, reject) => {
     const request = indexedDB.open(name, 1);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed'));
     request.onsuccess = () => {
       const database = request.result;
       const transaction = database.transaction('fonts', 'readwrite');
       transaction.objectStore('fonts').delete(id);
       transaction.oncomplete = () => { database.close(); resolve(); };
-      transaction.onabort = () => { database.close(); reject(transaction.error); };
+      transaction.onabort = () => { database.close(); reject(transaction.error ?? new Error('IndexedDB delete aborted')); };
     };
   }), { name: CUSTOM_FONTS_DATABASE, id });
   await popup.reload();
@@ -197,7 +198,7 @@ test('launches independently configured preview and legacy popups', responsive, 
   await context.routeWebSocket('ws://localhost:23074', (socket) => {
     sockets.push(socket.url());
     socket.onMessage((message) => {
-      if (JSON.parse(String(message)).Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
+      if (sniCommand(message).Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
     });
   });
   const errors: string[] = [];
@@ -237,7 +238,7 @@ test('launches independently configured preview and legacy popups', responsive, 
 test('preserves the legacy bookmark and appearance', responsive, async ({ page }) => {
   await page.routeWebSocket('ws://localhost:23074', (socket) => {
     socket.onMessage((message) => {
-      const request = JSON.parse(String(message));
+      const request = sniCommand(message);
       if (request.Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
       if (request.Opcode === 'GetAddress') socket.send(Buffer.from([0]));
     });
@@ -300,12 +301,12 @@ test('recovers when SNI and then a device become available', async ({ page }) =>
   await page.routeWebSocket('ws://localhost:23074', (socket) => {
     connections += 1;
     if (connections < 3) {
-      socket.close({ reason: 'SNI not running' });
+      void socket.close({ reason: 'SNI not running' });
       return;
     }
     current = socket;
     socket.onMessage((message) => {
-      const request = JSON.parse(String(message));
+      const request = sniCommand(message);
       if (request.Opcode === 'DeviceList') {
         discoveries += 1;
         socket.send(JSON.stringify({ Results: discoveries === 1 ? [] : ['Later device'] }));
@@ -323,7 +324,7 @@ test('recovers when SNI and then a device become available', async ({ page }) =>
   await page.clock.runFor(5000);
   await expect(page.getByText('Connected to Later device', { exact: true })).toBeVisible();
   await expect.poll(() => connections).toBe(3);
-  current!.close({ reason: 'SNI restarted' });
+  void current!.close({ reason: 'SNI restarted' });
   await expect(page.getByText('Disconnected: SNI restarted', { exact: true })).toBeVisible();
   await page.clock.runFor(5000);
   await expect(page.getByText('Connected to Later device', { exact: true })).toBeVisible();
@@ -333,7 +334,7 @@ test('recovers when SNI and then a device become available', async ({ page }) =>
 test('loads only the selected runtime and restores strict bookmark flags', async ({ page }) => {
   await page.routeWebSocket('ws://localhost:23074', (socket) => {
     socket.onMessage((message) => {
-      if (JSON.parse(String(message)).Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
+      if (sniCommand(message).Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
     });
   });
   const requests: string[] = [];
@@ -393,7 +394,7 @@ test('edits and saves palette stops and launches unsaved timer choices', respons
   const popup = await opened;
   await expect(popup).toHaveTitle('Stonks Tracker - v0.2.0-preview');
   await expect(popup.locator('h2')).toHaveCSS('color', 'rgb(18, 52, 86)');
-  expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).palettes).toEqual(appearance.palettes);
+  expect((JSON.parse(new URL(popup.url()).searchParams.get('appearance')!) as { palettes: unknown }).palettes).toEqual(appearance.palettes);
   for (const [name, color] of edits) {
     await expect(popup.getByText(METRICS[name].title, { exact: true }).locator('..').locator('.beveled-box[style]')).toHaveCSS('background-color', `rgb(${hexToRgb(color).join(', ')})`);
   }
@@ -674,7 +675,7 @@ test('writes the words timer in representative scripts inside each viewport', re
 test('renders the one-to-four-widget column layouts in both versions', responsive, async ({ page }) => {
   await page.routeWebSocket('ws://localhost:23074', (socket) => {
     socket.onMessage((message) => {
-      if (JSON.parse(String(message)).Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
+      if (sniCommand(message).Opcode === 'DeviceList') socket.send(JSON.stringify({ Results: ['Fixture'] }));
     });
   });
   for (const preview of [false, true]) {

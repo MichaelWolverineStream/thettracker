@@ -33,7 +33,7 @@ function storageError(error: unknown): CustomFontError {
 function bounded<T>(operation: Promise<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => reject(new CustomFontError('timeout', 'Font operation timed out')), FONT_OPERATION_TIMEOUT);
-    operation.then((result) => { clearTimeout(timeout); resolve(result); }, (error) => { clearTimeout(timeout); reject(error); });
+    operation.then((result) => { clearTimeout(timeout); resolve(result); }, (error: unknown) => { clearTimeout(timeout); reject(error); });
   });
 }
 

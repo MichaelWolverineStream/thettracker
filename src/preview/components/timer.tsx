@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useShouldStart } from '../timerContext';
+import { useShouldStart } from '../useShouldStart';
 
 export interface TimerProps {
     timeStarted: number;
