@@ -274,28 +274,30 @@ retains its original behavior and quirks.
 
 ## Prerequisites
 
-Use native ARM64 Node.js 26 on an Apple Silicon Mac; `package.json` declares
-`"engines": { "node": "^26" }`. Local installation, build, and browser checks
-were verified on an M2 Mac with Node.js `26.12.0` and npm `11.20.0`. npm is
-included with Node.js.
+Use native ARM64 Node.js 24 on an Apple Silicon Mac. `package.json` declares
+`"engines": { "node": "24.x" }`, which also selects Node.js 24 for Vercel
+deployments. Vercel supports only Node.js 22.x and 24.x, so do not raise this to
+a newer major until Vercel supports it. jsdom 30 (test environment) needs Node.js
+24.15 or later. Local installation, build, and browser checks were verified on an
+M2 Mac with Node.js `24.22.0` and npm `11.19.1`. npm is included with Node.js.
 
 If Node.js is not installed and Homebrew is available:
 
 ```bash
-brew install node
-brew pin node
+brew install node@24
+brew link node@24
 node -v
 npm -v
 node -p 'process.arch'
 ```
 
-The architecture should be `arm64`. If an older versioned formula such as
-`node@22` is linked, run `brew unlink node@22` first and remove any `node@22`
-PATH export from your shell profile. Pinning keeps `brew upgrade` from moving to
-the next Node.js major. To take Node.js 26 patch and security releases, run
-`brew unpin node && brew upgrade node && brew pin node`. Once Homebrew's `node`
-formula moves to Node.js 27, switch to the versioned `node@26` formula instead.
-An existing native Node.js 26 installation can be used instead of Homebrew.
+The architecture should be `arm64`. First unlink any other linked Node.js formula
+(`brew unlink node` or `brew unlink node@22`) and remove any Node.js PATH export
+from your shell profile. If `brew link` reports conflicting npm files left by the
+unversioned `node` formula, run `brew uninstall node` or
+`brew link --overwrite node@24`. The versioned formula stays on Node.js 24, so
+`brew upgrade node@24` installs patch and security releases. An existing native
+Node.js 24 installation can be used instead of Homebrew.
 
 The frontend does not require Docker, Rosetta, a database, or environment files.
 Live game tracking requires a separate local service, described below.
@@ -465,11 +467,13 @@ Dependency audit review on October 21, 2026:
 
 Toolchain upgrade on October 21, 2026:
 
-- Node.js 22 → 26 and npm 10 → 11. Vitest 1.6.1 → 5.0.5, Vite 5 → 8.3.5
+- Node.js 22 → 24 and npm 10 → 11. Vitest 1.6.1 → 5.0.5, Vite 5 → 8.3.5
   (Rolldown, Oxc and Lightning CSS replace esbuild, Rollup and Babel),
   `@vitejs/plugin-react` 4 → 6.1.2, jsdom 27.4.0 → 30.1.3, Playwright 1.55.1 →
-  1.64.1, TypeScript 5.9.3 and `@types/node` 26. The lockfile shrank from 478 to
+  1.64.1, TypeScript 5.9.3 and `@types/node` 24. The lockfile shrank from 478 to
   376 packages. `vite.config.ts` uses `import.meta.dirname` instead of `__dirname`.
+- Node.js 26 passed the same checks, but Vercel deploys only Node.js 22.x and
+  24.x, so the project targets `24.x`.
 - **Browser floor:** Vite 8's default build target is Baseline Widely Available:
   Chrome/Edge 111, Firefox 114 and Safari/iOS 16.4 (previously Chrome 87, Edge 88,
   Firefox 78 and Safari 14). Legacy and preview share one build, so this also
@@ -480,7 +484,7 @@ Toolchain upgrade on October 21, 2026:
   production preview browser tests.
 - Node.js 25+ defines its own `localStorage`/`sessionStorage`. Vitest 5 keeps
   jsdom's Web Storage, and `tests/test-environment.test.ts` fails if Node's
-  storage ever shadows it.
+  storage ever shadows it, for example after a future move beyond Node.js 24.
 - `npm audit` now reports 14 findings (3 moderate, 11 high, 0 critical). The
   `vitest`, `tinypool`, `vite`, `vite-node` and `esbuild` findings, including both
   critical ones, are gone. The remaining findings are lint and Tailwind build
@@ -490,7 +494,7 @@ Toolchain upgrade on October 21, 2026:
   have no Tailwind 3 fix and need Tailwind 4. Both upgrades are follow-ups, and
   the mitigations above still apply.
 - The production build has a new bundler and is no longer byte-identical; it
-  still emits 20 files. 188 unit tests and 28 browser tests pass on development
-  and production preview with unchanged legacy screenshots; the unit tests also
-  pass on Node.js 22. Full lint is unchanged at 41 errors and 47 warnings. Legacy
-  was re-certified. `npm ci` prints no warnings.
+  still emits 20 files. On Node.js 24, 188 unit tests and 28 browser tests pass
+  on development and production preview with unchanged legacy screenshots; the
+  unit tests also pass on Node.js 22. Full lint is unchanged at 41 errors and 47
+  warnings. Legacy was re-certified. `npm ci` prints no warnings.
