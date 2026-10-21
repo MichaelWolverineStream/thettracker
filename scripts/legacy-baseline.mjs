@@ -14,6 +14,9 @@ const filesIn = (directory) => readdirSync(directory, { withFileTypes: true }).f
 });
 const packagePath = join(root, 'package.json');
 const lockPath = join(root, 'package-lock.json');
+const lockedVersions = () => Object.fromEntries(Object.entries(readJson(lockPath).packages)
+  .filter(([path, entry]) => path && entry.version)
+  .map(([path, entry]) => [path, entry.version]));
 
 if (process.argv[2] === 'capture') {
   if (existsSync(legacy)) throw new Error('Legacy already exists; refusing to replace the baseline.');
@@ -28,9 +31,7 @@ if (process.argv[2] === 'capture') {
       join(root, 'index.html'), ...filesIn(join(root, 'src/assets')), ...filesIn(join(root, 'public')),
     ].map((path) => [path.slice(root.length), hash(path)])),
     dependencies: readJson(packagePath).dependencies,
-    lockedVersions: Object.fromEntries(Object.entries(readJson(lockPath).packages)
-      .filter(([path, entry]) => path && entry.version)
-      .map(([path, entry]) => [path, entry.version])),
+    lockedVersions: lockedVersions(),
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
@@ -46,6 +47,13 @@ for (const [path, expected] of Object.entries(manifest.sources)) {
 }
 for (const [path, expected] of Object.entries(manifest.shared)) {
   if (hash(join(root, path)) !== expected) throw new Error(`Legacy asset or document changed: ${path}`);
+}
+// Re-certification only runs after frozen sources, assets and Tailwind settings verified unchanged.
+if (process.argv[2] === 'recertify') {
+  manifest.dependencies = readJson(packagePath).dependencies;
+  manifest.lockedVersions = lockedVersions();
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log('Re-certified legacy dependency declarations and locked versions.');
 }
 const dependencies = readJson(packagePath).dependencies;
 if (JSON.stringify(dependencies) !== JSON.stringify(manifest.dependencies)) throw new Error('Legacy runtime dependency declarations changed.');

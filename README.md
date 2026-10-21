@@ -256,6 +256,12 @@ require explicitly re-certifying legacy. This is source isolation in one build,
 not an independently archived binary release. The package metadata version is
 not the user-facing tracker release label.
 
+To re-certify after an intentional dependency change, first pass `npx vitest run`,
+`npm run build` and `npm run test:e2e` (legacy screenshots unchanged), then run
+`node scripts/legacy-baseline.mjs recertify`. It refuses to run if frozen sources,
+assets or Tailwind settings changed, and rewrites only the manifest's dependency
+declarations and locked versions.
+
 Preview retains the original metrics, defaults, palettes and controls, with
 four intentional corrections: stop/resume preserves all elapsed time; startup
 rates are zero rather than NaN/Infinity and colors remain valid; SNI recovery is
@@ -418,7 +424,31 @@ Setup checks on October 11, 2026:
   split. New runtime code has no lint errors and retains one inherited preview
   context Fast Refresh warning. General lint cleanup is out of scope.
 - npm reported 30 dependency vulnerabilities: 1 low, 10 moderate, and 19 high.
-  Dependency security remediation requires a separate review; do not apply
-  `npm audit fix` blindly.
 - The successful build warns about outdated Browserslist data and legacy
   Tailwind content configuration. These warnings currently do not block startup.
+
+Dependency audit review on October 21, 2026:
+
+- Before review, `npm audit` reported 32 findings: 1 low, 10 moderate, 19 high
+  and 2 critical, all in build, test and lint tooling. The browser bundle uses
+  only `react`, `react-dom` and `lucide-react`, none of which is affected.
+- The unused `class-variance-authority`, `clsx` and `tailwind-merge` were
+  removed, the non-breaking `npm audit fix` was applied and legacy was
+  re-certified after unit, build and browser checks (development and production
+  preview) passed with unchanged legacy screenshots. The outdated Browserslist
+  build warning no longer appears.
+- 19 findings remain (5 moderate, 12 high, 2 critical). `braces` and
+  `postcss-selector-parser` (via Tailwind 3) have no compatible fix. The others
+  require major upgrades of vitest, vite or @typescript-eslint. None is reachable
+  in the documented macOS workflow: they require Windows or WSL, a
+  network-exposed development or Vitest UI server, attacker-controlled glob
+  patterns or CSS, or an existing prototype-pollution bug in test code. Keep
+  development and preview servers bound to `127.0.0.1`, do not run `vitest --ui`
+  or `--api`, and do not use `npm audit fix --force` without a separate upgrade
+  review.
+- The two `npm install` deprecation warnings were removed: `jsdom` (test
+  environment only) moved from 24.1.3 to 27.4.0, which replaces `whatwg-encoding`
+  with `@exodus/bytes`, and the Tailwind dependency `sucrase` moved within range
+  to 3.35.1, which replaces `glob@10` with `tinyglobby`. The production build
+  output is byte-identical, unit and browser tests pass, and legacy was
+  re-certified. `npm ci` now prints no warnings.
