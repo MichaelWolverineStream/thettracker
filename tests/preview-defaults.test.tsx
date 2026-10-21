@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe('preview editor draft and save lifecycle', () => {
-  const preview = () => within(screen.getByRole('region', { name: 'v0.1.0-preview' }));
+  const preview = () => within(screen.getByRole('region', { name: 'v0.2.0-preview' }));
 
   it('saves and resets appearance options without false unsaved changes', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);

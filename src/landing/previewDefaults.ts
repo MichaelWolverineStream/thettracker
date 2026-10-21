@@ -1,6 +1,7 @@
 import { DEFAULT_LAUNCH_SETTINGS, WIDGETS, type WidgetSettings } from '../preview/config';
 import { isRecord, resolveAppearance, type AppearanceSettings } from '../preview/appearance';
 
+// Keeps the first preview release's name so saved defaults survive release label changes.
 export const PREVIEW_DEFAULTS_KEY = 'thettracker:launcher:0.1.0-preview:defaults:v1';
 export const MAX_DEFAULTS_LENGTH = 4096;
 

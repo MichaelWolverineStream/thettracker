@@ -5,7 +5,7 @@ page opens a tracker window containing the selected widgets.
 
 ## Versions and Bookmarks
 
-The start page has two independent configuration sections: **v0.1.0-preview**
+The start page has two independent configuration sections: **v0.2.0-preview**
 above **v0.0.43-legacy**. Factory settings enable all eight widgets; preview can
 restore explicitly saved launcher defaults. Both launch a resizable 600x600
 tracker window. Changing one section does not change the other.
@@ -26,11 +26,11 @@ settings retain the original colors and inherited timer font:
 
 Only literal `tracker=true` opens a tracker. New tracker links use `version=2`.
 This is the URL API version, independent of visible release labels such as
-`v0.1.0-preview`; minor and patch releases do not change it. Existing
-`version=0.1.0-preview` links remain supported as a compatibility alias. Absent,
-empty, legacy or unrecognized versions select legacy. Flags enable only for
-literal `true`, repeated keys use
-their first occurrence, and missing `boxes` defaults to `3`. Existing legacy
+`v0.2.0-preview`; minor and patch releases do not change it. Existing
+`version=0.1.0-preview` links from the first preview release remain supported as
+a compatibility alias. Absent, empty, legacy or unrecognized versions select
+legacy. Flags enable only for literal `true`, repeated keys use their first
+occurrence, and missing `boxes` defaults to `3`. Existing legacy
 query parsing and launch URL generation, including malformed parameter behavior,
 remain unchanged. URLs work relative to the deployment directory.
 
@@ -164,10 +164,11 @@ same color on rate text. Disabled metrics keep their palettes and remain editabl
 
 Defaults use the origin-local key
 `thettracker:launcher:0.1.0-preview:defaults:v1`, with the envelope
-`{v:1, widgets:{...}, appearance:{timer:{...}, palettes:{...}}}`. Columns are
-derived rather than stored. No counters, elapsed time, SNI state or legacy
-settings are saved. Defaults do not synchronize across devices or origins;
-saving them does not alter a tracker that is already open.
+`{v:1, widgets:{...}, appearance:{timer:{...}, palettes:{...}}}`. The key keeps
+the first preview release's name so saved defaults carry over to later preview
+releases. Columns are derived rather than stored. No counters, elapsed time, SNI
+state or legacy settings are saved. Defaults do not synchronize across devices or
+origins; saving them does not alter a tracker that is already open.
 
 The `appearance` URL value is versioned JSON, encoded by `URLSearchParams`.
 For example, its decoded form can be:
@@ -273,23 +274,28 @@ retains its original behavior and quirks.
 
 ## Prerequisites
 
-Use native ARM64 Node.js 22 on an Apple Silicon Mac. Local installation, build,
-and browser checks were verified on an M2 Mac with Node.js `22.23.3` and npm
-`10.9.9`. npm is included with Node.js.
+Use native ARM64 Node.js 26 on an Apple Silicon Mac; `package.json` declares
+`"engines": { "node": "^26" }`. Local installation, build, and browser checks
+were verified on an M2 Mac with Node.js `26.12.0` and npm `11.20.0`. npm is
+included with Node.js.
 
 If Node.js is not installed and Homebrew is available:
 
 ```bash
-brew install node@22
-export PATH="$(brew --prefix node@22)/bin:$PATH"
+brew install node
+brew pin node
 node -v
 npm -v
 node -p 'process.arch'
 ```
 
-The architecture should be `arm64`. Homebrew's versioned Node installation is
-not automatically added to PATH; repeat the export in each new terminal. An
-existing native Node.js 22 installation can be used instead.
+The architecture should be `arm64`. If an older versioned formula such as
+`node@22` is linked, run `brew unlink node@22` first and remove any `node@22`
+PATH export from your shell profile. Pinning keeps `brew upgrade` from moving to
+the next Node.js major. To take Node.js 26 patch and security releases, run
+`brew unpin node && brew upgrade node && brew pin node`. Once Homebrew's `node`
+formula moves to Node.js 27, switch to the versioned `node@26` formula instead.
+An existing native Node.js 26 installation can be used instead of Homebrew.
 
 The frontend does not require Docker, Rosetta, a database, or environment files.
 Live game tracking requires a separate local service, described below.
@@ -309,7 +315,11 @@ only. Stop it with Ctrl+C. Opening the source HTML directly is not supported.
 
 Use `npm ci` to install the committed dependency versions. The existing lockfile
 installed successfully without changes; do not delete it or run dependency
-upgrades as part of normal startup.
+upgrades as part of normal startup. npm 11 runs dependency install scripts only
+when `allowScripts` in `package.json` approves them. The only package that has one,
+`fsevents`, is denied because its bundled prebuilt binary is sufficient, so `npm ci`
+runs no dependency install scripts. Do not install with `--omit=optional`: Vite's
+native Rolldown and Lightning CSS binaries are optional dependencies.
 
 ## Build and Preview
 
@@ -452,3 +462,35 @@ Dependency audit review on October 21, 2026:
   to 3.35.1, which replaces `glob@10` with `tinyglobby`. The production build
   output is byte-identical, unit and browser tests pass, and legacy was
   re-certified. `npm ci` now prints no warnings.
+
+Toolchain upgrade on October 21, 2026:
+
+- Node.js 22 → 26 and npm 10 → 11. Vitest 1.6.1 → 5.0.5, Vite 5 → 8.3.5
+  (Rolldown, Oxc and Lightning CSS replace esbuild, Rollup and Babel),
+  `@vitejs/plugin-react` 4 → 6.1.2, jsdom 27.4.0 → 30.1.3, Playwright 1.55.1 →
+  1.64.1, TypeScript 5.9.3 and `@types/node` 26. The lockfile shrank from 478 to
+  376 packages. `vite.config.ts` uses `import.meta.dirname` instead of `__dirname`.
+- **Browser floor:** Vite 8's default build target is Baseline Widely Available:
+  Chrome/Edge 111, Firefox 114 and Safari/iOS 16.4 (previously Chrome 87, Edge 88,
+  Firefox 78 and Safari 14). Legacy and preview share one build, so this also
+  applies to existing legacy bookmarks. Check that streaming browser sources (OBS or
+  other embedded Chromium) meet it. To restore the previous floor, set
+  `build: { target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'] }`
+  in `vite.config.ts`; this was verified to build ES2020 output and pass the
+  production preview browser tests.
+- Node.js 25+ defines its own `localStorage`/`sessionStorage`. Vitest 5 keeps
+  jsdom's Web Storage, and `tests/test-environment.test.ts` fails if Node's
+  storage ever shadows it.
+- `npm audit` now reports 14 findings (3 moderate, 11 high, 0 critical). The
+  `vitest`, `tinypool`, `vite`, `vite-node` and `esbuild` findings, including both
+  critical ones, are gone. The remaining findings are lint and Tailwind build
+  tooling only. `@typescript-eslint` 7 and its `braces`, `micromatch`, `fast-glob`
+  and `globby` chain need an `@typescript-eslint` 8 upgrade. `tailwindcss` 3,
+  `chokidar`, `postcss-nested`, `postcss-selector-parser` and `tailwindcss-animate`
+  have no Tailwind 3 fix and need Tailwind 4. Both upgrades are follow-ups, and
+  the mitigations above still apply.
+- The production build has a new bundler and is no longer byte-identical; it
+  still emits 20 files. 188 unit tests and 28 browser tests pass on development
+  and production preview with unchanged legacy screenshots; the unit tests also
+  pass on Node.js 22. Full lint is unchanged at 41 errors and 47 warnings. Legacy
+  was re-certified. `npm ci` prints no warnings.

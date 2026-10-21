@@ -10,7 +10,7 @@ function Tracker() {
     const userSettingsProps = useRef<userSettingsProps>(parsePreviewSettings(window.location.search));
 
     useEffect(() => {
-        document.title = 'Stonks Tracker - v0.1.0-preview';
+        document.title = 'Stonks Tracker - v0.2.0-preview';
     }, []);
 
     return (

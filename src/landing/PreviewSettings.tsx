@@ -117,9 +117,9 @@ export default function PreviewSettings() {
   }
 
   return (
-    <section className={styles.section} aria-labelledby="v0.1.0-preview-heading">
+    <section className={styles.section} aria-labelledby="v0.2.0-preview-heading">
       <header className={styles.versionHeader}>
-        <h2 id="v0.1.0-preview-heading">v0.1.0-preview</h2>
+        <h2 id="v0.2.0-preview-heading">v0.2.0-preview</h2>
         <span className={styles.previewBadge}>Preview</span>
       </header>
       <form onSubmit={launch}>
@@ -204,8 +204,8 @@ export default function PreviewSettings() {
             return (
               <div key={name} className={styles.metric}>
                 <div className={styles.metricHeader}>
-                  <label htmlFor={`v0.1.0-preview-${name}`} className={styles.widget}>
-                    <input id={`v0.1.0-preview-${name}`} name={name} type="checkbox" checked={draft.widgets[name]} onChange={(event) => edit((previous) => ({ ...previous, widgets: { ...previous.widgets, [name]: event.target.checked } }))} />
+                  <label htmlFor={`v0.2.0-preview-${name}`} className={styles.widget}>
+                    <input id={`v0.2.0-preview-${name}`} name={name} type="checkbox" checked={draft.widgets[name]} onChange={(event) => edit((previous) => ({ ...previous, widgets: { ...previous.widgets, [name]: event.target.checked } }))} />
                     <span>{label}</span>
                   </label>
                   <button type="button" className={styles.iconButton} aria-label={`${metric.title} colors`} title={`${metric.title} colors`} aria-expanded={!!expanded[name]} aria-controls={`palette-${name}`} onClick={() => setExpanded((previous) => ({ ...previous, [name]: !previous[name] }))}>

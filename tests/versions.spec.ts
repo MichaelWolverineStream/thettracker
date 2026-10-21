@@ -37,7 +37,7 @@ const customFontFile = {
 };
 
 async function uploadCustomFont(page: Page) {
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const preview = page.getByRole('region', { name: 'v0.2.0-preview' });
   await preview.getByLabel('Timer color', { exact: true }).fill('#c43d52');
   await preview.getByLabel('Custom font file', { exact: true }).setInputFiles(customFontFile);
   await expect(preview.getByLabel('Timer font', { exact: true })).toHaveValue('custom');
@@ -75,7 +75,7 @@ test('custom font upload persists, launches and fits', async ({ page, context })
     if (/\.(woff2?|ttf|otf)(\?|$)/.test(request.url()) && new URL(request.url()).origin !== new URL(page.url()).origin) externalFonts.push(request.url());
   });
   await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const preview = page.getByRole('region', { name: 'v0.2.0-preview' });
   const sample = preview.getByLabel('Timer preview', { exact: true });
   const { id } = await uploadCustomFont(page);
   await expectCustomFont(sample, id);
@@ -120,7 +120,7 @@ test('missing custom font falls back', async ({ page, context, browser }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const preview = page.getByRole('region', { name: 'v0.2.0-preview' });
   const sample = preview.getByLabel('Timer preview', { exact: true });
   const { family, id } = await uploadCustomFont(page);
   await preview.getByRole('button', { name: 'Save Defaults' }).click();
@@ -173,7 +173,7 @@ test('custom font rejects a corrupt upload and a full font store without losing 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const preview = page.getByRole('region', { name: 'v0.2.0-preview' });
   const input = preview.getByLabel('Custom font file', { exact: true });
   const font = preview.getByLabel('Timer font', { exact: true });
   const status = preview.getByLabel('Font status', { exact: true });
@@ -203,7 +203,7 @@ test('launches independently configured preview and legacy popups', responsive, 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const preview = page.getByRole('region', { name: 'v0.2.0-preview' });
   const legacy = page.getByRole('region', { name: 'v0.0.43-legacy' });
   await expect(preview.getByRole('checkbox')).toHaveCount(9);
   await expect(legacy.getByRole('checkbox')).toHaveCount(8);
@@ -214,7 +214,7 @@ test('launches independently configured preview and legacy popups', responsive, 
   const previewOpened = page.waitForEvent('popup');
   await preview.getByRole('button', { name: 'Launch', exact: true }).click();
   const previewPopup = await previewOpened;
-  await expect(previewPopup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
+  await expect(previewPopup).toHaveTitle('Stonks Tracker - v0.2.0-preview');
   const params = new URL(previewPopup.url()).searchParams;
   expect(params.get('version')).toBe('2');
   expect(params.get('bonks')).toBe('false');
@@ -352,7 +352,7 @@ test('loads only the selected runtime and restores strict bookmark flags', async
   const favicon = await page.locator('link[rel="icon"]').getAttribute('href');
   expect((await page.request.get(new URL(favicon!, page.url()).href)).ok()).toBe(true);
   await page.goto('./index.html?tracker=true&version=0.1.0-preview&screens=true&boxes=1');
-  await expect(page).toHaveTitle('Stonks Tracker - v0.1.0-preview');
+  await expect(page).toHaveTitle('Stonks Tracker - v0.2.0-preview');
   await expect(page.getByText('Screens', { exact: true })).toBeVisible();
 });
 
@@ -360,7 +360,7 @@ test('edits and saves palette stops and launches unsaved timer choices', respons
   const sockets: string[] = [];
   await context.routeWebSocket('ws://localhost:23074', (socket) => { sockets.push(socket.url()); idleDevice(socket); });
   await page.goto('./index.html');
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const preview = page.getByRole('region', { name: 'v0.2.0-preview' });
   const appearance = resolveAppearance(undefined);
   const edits = [['checkCount', '#E63946'], ['deaths', '#2A9D8F']] as const;
   for (const [name, color] of edits) {
@@ -391,7 +391,7 @@ test('edits and saves palette stops and launches unsaved timer choices', respons
   const opened = page.waitForEvent('popup');
   await preview.getByRole('button', { name: 'Launch', exact: true }).click();
   const popup = await opened;
-  await expect(popup).toHaveTitle('Stonks Tracker - v0.1.0-preview');
+  await expect(popup).toHaveTitle('Stonks Tracker - v0.2.0-preview');
   await expect(popup.locator('h2')).toHaveCSS('color', 'rgb(18, 52, 86)');
   expect(JSON.parse(new URL(popup.url()).searchParams.get('appearance')!).palettes).toEqual(appearance.palettes);
   for (const [name, color] of edits) {
@@ -552,7 +552,7 @@ test('fits timer style, words language and Rotation/BLAT previews in the launche
   await context.routeWebSocket('ws://localhost:23074', idleDevice);
   await page.goto('./index.html');
   const { width } = page.viewportSize()!;
-  const preview = page.getByRole('region', { name: 'v0.1.0-preview' });
+  const preview = page.getByRole('region', { name: 'v0.2.0-preview' });
   const style = preview.getByLabel('Timer style', { exact: true });
   const sample = preview.getByLabel('Timer preview', { exact: true });
   const expectFits = async () => {

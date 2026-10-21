@@ -11,6 +11,10 @@ should be. Apply them when adding a test and when reviewing an existing one.
 | Component (jsdom) | Vitest + Testing Library | `*.test.tsx` | React state, hooks, launcher interactions, SNI protocol with `FakeSniSocket` |
 | Browser | Playwright (Chrome) | `*.spec.ts` | Only what jsdom cannot do: real font loading, layout/overflow, popups, IndexedDB, real WebSocket routing, legacy screenshot baseline |
 
+Node 25+ has its own `localStorage`/`sessionStorage` globals. `test-environment.test.ts`
+fails if they shadow jsdom's Web Storage, which would make `Storage.prototype` spies in the
+storage tests miss writes.
+
 ## Principles
 
 1. **Protect a behavior or contract that matters.** Every test guards something a user or an
